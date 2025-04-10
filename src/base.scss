@@ -1,0 +1,33 @@
+/* 文字基本颜色 */
+$uni-text-color: #333; // 基本色
+$uni-text-color-inverse: #fff; // 反色
+$uni-text-color-grey: #999; // 辅助灰色，如加载更多的提示信息
+$uni-text-color-placeholder: #808080;
+$uni-text-color-disable: #c0c0c0;
+
+/* 背景颜色 */
+$uni-menu-bg-color: #1a1a1a;  //菜单栏左侧和顶部背景
+$uni-content-bg-color: #2f2f2f;  //内容区域背景
+/* 高亮颜色 */
+$uni-active-bg-color:#437a02;  //按钮高亮颜色
+/* 边框颜色 */
+$uni-border-color: #c8c7cc;
+
+@mixin pagesBaseContent {
+  padding: 16rpx;
+  height: calc(100vh - 60px);
+  box-sizing: border-box;
+  background-color: $uni-content-bg-color;
+  color: #fff;
+}
+
+// 文字省略
+@mixin textShenglue( $num:none) {
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: #{$num}; /* 这里的数字表示你希望显示的行数 */
+  -webkit-box-orient: vertical;
+  white-space: normal;
+}
+

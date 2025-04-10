@@ -1,7 +1,13 @@
-<script setup></script>
+<script setup>
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+</script>
 
 <template>
-  <router-view></router-view>
+  <div class="cgsWeb">
+    <el-config-provider :locale="zhCn">
+      <router-view></router-view>
+    </el-config-provider>
+  </div>
 </template>
 
-<style lang="scss" scoped></style>
+<style lang="scss"></style>

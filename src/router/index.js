@@ -10,8 +10,15 @@ const router = createRouter({
       children: [
         { path: '/model', component: () => import('@/views/model/Model.vue') },
         { path: '/maps', component: () => import('@/views/maps/Maps.vue') },
-        { path: '/lighting', component: () => import('@/views/lighting/Lighting.vue') },
-        { path: '/material', component: () => import('@/views/material/Material.vue') }
+        {
+          path: '/lighting',
+          component: () => import('@/views/lighting/Lighting.vue')
+        },
+        {
+          path: '/material',
+          component: () => import('@/views/material/Material.vue')
+        },
+        { path: '/vip', component: () => import('@/views/vip/Vip.vue') }
       ]
     }
   ]
