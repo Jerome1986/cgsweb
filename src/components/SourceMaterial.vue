@@ -13,6 +13,7 @@ import {
 } from '@/api/users'
 import { useRoute, useRouter } from 'vue-router'
 import fs from 'fs'
+import path from 'path'
 
 const props = defineProps({
   type: String,
@@ -59,7 +60,7 @@ const itemSize = ref(405) // 默认尺寸
 const minSize = 200 // 最小尺寸
 const maxSize = 600 // 最大尺寸
 
-// 在适当位置添加拖拽相关状态
+// 拖拽状态
 const isDragging = ref(false)
 
 // 获取所有素材
@@ -187,14 +188,18 @@ const handleUserCoinsOrTimes = async (material_id) => {
 }
 
 /**
- * 处理点击下载
+ * 完全修复的下载处理函数
  * @param {materialModel} item - 当前素材对象信息
  * @returns {Promise<void>}
  */
 const handleDownload = async (item) => {
   console.log('下载', item)
 
-  if (pathStore.downloadPath === '未设置') {
+  // 从 pathStore 获取下载路径
+  const basePath = pathStore.downloadPath;
+
+  // 如果下载路径未设置或显示为"未设置"
+  if (!basePath || basePath === '未设置') {
     ElMessage.error('请先设置下载路径')
     return
   }
@@ -203,67 +208,148 @@ const handleDownload = async (item) => {
     // 扣除用户金币和下载次数
     await handleUserCoinsOrTimes(item._id)
 
-    // 提取必要的原始数据类型
-    const downloadUrl = String(item.files_url)
-    const fileName = `${String(item.name || 'file')}_${Date.now()}.zip`
-    const itemType = String(item.type || props.type)
-    const materialId = String(item._id)
-    const basePath = String(pathStore.downloadPath)
+    // 改进类型判断逻辑
+    let category = 'model'; // 默认为模型
 
-    ElMessage.warning('已添加到下载列表')
+    // 基于路由路径判断类型
+    if (route.path.includes('/material')) {
+      category = 'material';
+    } else if (route.path.includes('/lighting')) {
+      category = 'light';
+    } else if (route.path.includes('/maps')) {
+      category = 'texture';
+    }
 
-    // 使用原始数据类型进行 IPC 通信
-    const downloadedPath = await window.electronAPI.downloadFile(
+    // 然后基于item.type进一步判断，如果有的话
+    if (item.type) {
+      if (item.type.includes('材质')) category = 'material';
+      else if (item.type.includes('灯光')) category = 'light';
+      else if (item.type.includes('贴图')) category = 'texture';
+      else if (item.type.includes('模型')) category = 'model';
+    }
+
+    console.log('使用类别:', category);
+
+    // 提取必要的原始数据类型并确保获取正确的URL
+    let downloadUrl = '';
+
+    // 验证文件URL数组
+    if (Array.isArray(item.files_url) && item.files_url.length > 0) {
+      downloadUrl = item.files_url[0];
+    } else if (typeof item.files_url === 'string') {
+      // 如果files_url是字符串而不是数组
+      downloadUrl = item.files_url;
+    } else {
+      throw new Error('无效的文件URL');
+    }
+
+    // 验证URL格式
+    if (!downloadUrl || !downloadUrl.startsWith('http')) {
+      throw new Error(`无效的下载URL: ${downloadUrl}`);
+    }
+
+    console.log('下载URL:', downloadUrl);
+
+    const fileName = item.name || downloadUrl.split('/').pop() || `file_${Date.now()}.zip`;
+    const itemType = String(item.type || props.type);
+    const materialId = String(item._id);
+
+    ElMessage.warning('已添加到下载列表');
+
+    // 使用带类别信息的路径构建
+    const savePath = await window.electronAPI.joinPaths(basePath, fileName, category);
+    console.log('保存路径:', savePath);
+
+    // 执行下载，传递所有需要的参数
+    const result = await window.electronAPI.downloadFile(
       downloadUrl,
-      basePath,
-      itemType,
+      savePath,
+      category,
       fileName
-    )
+    );
 
-    if (!downloadedPath) {
-      throw new Error('下载路径无效')
+    if (!result) {
+      throw new Error('下载失败: 未收到下载结果');
     }
 
-    // 处理返回的路径 - 使用字符串方法
-    const pathStr = String(downloadedPath)
-    const lastBackslashIndex = pathStr.lastIndexOf('\\')
-    const lastForwardSlashIndex = pathStr.lastIndexOf('/')
-    const lastSlashIndex = Math.max(lastBackslashIndex, lastForwardSlashIndex)
+    if (result.success) {
+      // 下载成功，尝试解压
+      try {
+        console.log('尝试自动解压文件:', result.path);
+        const extractResult = await window.electronAPI.extractArchive(result.path);
+        console.log('解压完成，返回结果:', extractResult);
 
-    if (lastSlashIndex === -1) {
-      throw new Error('无法解析下载路径')
-    }
+        if (extractResult) {
+          ElMessage.success(`下载并解压成功`);
 
-    // 提取目录路径
-    const dirPath = pathStr.substring(0, lastSlashIndex)
+          // 添加到本地下载路径列表
+          pathStore.setLocalDownloadPath({
+            material_id: materialId,
+            localPath: extractResult
+          });
 
-    // 添加到本地下载路径列表 - 使用简单对象
-    pathStore.setLocalDownloadPath({
-      material_id: materialId,
-      localPath: dirPath
-    })
+          // 下载成功后添加到用户的下载列表
+          const addRes = await userDownLoadListAdd(userStore.userInfo._id, materialId);
 
-    // 下载成功后添加到用户的下载列表
-    const addRes = await userDownLoadListAdd(userStore.userInfo._id, materialId)
+          if (addRes.code === 200) {
+            ElMessage.success(`${addRes.message}`);
 
-    if (addRes.code === 200) {
-      ElMessage.success(`${addRes.message},文件已下载到: ${pathStr}`)
+            // 刷新下载列表
+            await downLoadListGet();
+          }
 
-      // 注释掉自动打开文件夹的功能
-      // try {
-      //   await window.electronAPI.openPath(basePath)
-      // } catch (openError) {
-      //   console.error('打开目录失败:', openError)
-      // }
+          // 解压成功后删除原始 zip 文件
+          try {
+            console.log('尝试删除原始 zip 文件:', result.path);
+            await window.electronAPI.deleteFile(result.path);
+            console.log('原始压缩文件已删除');
+          } catch (deleteError) {
+            console.warn('删除原始压缩文件失败:', deleteError);
+          }
 
-      // 刷新下载列表
-      await downLoadListGet()
+          return {
+            success: true,
+            downloadPath: result.path,
+            extractPath: extractResult
+          };
+        } else {
+          throw new Error('解压返回结果为空');
+        }
+      } catch (extractError) {
+        console.error('解压过程出错:', extractError);
+        ElMessage.warning(`文件已下载，但解压失败: ${extractError.message || '未知错误'}`);
+
+        // 即使解压失败，也添加到下载列表
+        pathStore.setLocalDownloadPath({
+          material_id: materialId,
+          localPath: path.dirname(result.path)
+        });
+
+        // 下载成功后添加到用户的下载列表
+        const addRes = await userDownLoadListAdd(userStore.userInfo._id, materialId);
+        if (addRes.code === 200) {
+          ElMessage.success(`${addRes.message}`);
+          await downLoadListGet();
+        }
+
+        return {
+          success: true,
+          downloadPath: result.path,
+          extractError
+        };
+      }
+    } else {
+      throw new Error(result.error || '下载失败');
     }
   } catch (error) {
-    console.error('下载失败:', error)
-    ElMessage.error(`下载失败: ${error?.message || '未知错误'}`)
+    console.error('下载出错:', error);
+    ElMessage.error(`下载失败: ${error.message || '未知错误'}`);
+    return {
+      success: false,
+      error
+    };
   }
-}
+};
 
 /**
  * 用户下载列表
@@ -276,9 +362,13 @@ const downLoadListGet = async () => {
   userDownLoadList.value = res.data
 }
 
-// 获取用户下载列表标记下载状态
-const isDownloaded = computed(() => (material_id) => {
-  return userDownLoadList.value.some((item) => item.material_id === material_id)
+// 检查素材是否已下载
+const isDownloaded = computed(() => {
+  return (materialId) => {
+    return pathStore.localDownloadPath.some(
+      item => item.material_id === materialId
+    )
+  }
 })
 
 // 本机有
@@ -356,14 +446,13 @@ const openLocalMaterial = async (material_id) => {
 }
 
 // 处理拖拽开始事件 - 使用原生拖拽
-const handleDragStart = (e, item) => {
+const handleDragStart = async (e, item) => {
   console.log('dragstart event fired')
 
   // 阻止默认HTML5拖拽
   e.preventDefault()
 
   if (!isDownloaded.value(item._id)) {
-    ElMessage.warning('请先下载素材后再拖拽')
     return
   }
 
@@ -371,69 +460,71 @@ const handleDragStart = (e, item) => {
   isDragging.value = true
   e.target.classList.add('dragging')
 
-  // 查找本地下载信息
-  const filterLocal = pathStore.localDownloadPath.filter(
-    (path) => path.material_id === item._id
-  )
+  try {
+    // 查找本地下载信息
+    const localPathInfo = pathStore.localDownloadPath.find(
+      path => path.material_id === item._id
+    )
 
-  if (filterLocal.length) {
-    const dirPath = filterLocal[0].localPath
-    const namePattern = `${item.name}*.zip`
+    if (!localPathInfo) {
+      throw new Error('找不到素材的本地文件信息')
+    }
 
-    // 获取文件后启动原生拖拽
-    window.electronAPI
-      .getFilesInDirectory(dirPath, namePattern)
-      .then((files) => {
-        if (files.length > 0) {
-          // 找到最新的文件
-          const sortedFiles = files.sort((a, b) => {
-            try {
-              const statA = fs.statSync(a)
-              const statB = fs.statSync(b)
-              return statB.mtime.getTime() - statA.mtime.getTime()
-            } catch (error) {
-              return 0
-            }
-          })
+    // 获取基础目录路径
+    const basePath = localPathInfo.localPath
+    if (!basePath) {
+      throw new Error('素材路径不存在')
+    }
 
-          const fullPath = sortedFiles[0]
-          console.log('启动原生拖拽文件:', fullPath)
+    // 确定素材类型
+    let fileType = 'model'
+    if (route.path === '/material') {
+      fileType = 'material'
+    } else if (route.path === '/lighting') {
+      fileType = 'light'
+    } else if (route.path === '/maps') {
+      fileType = 'texture'
+    }
 
-          // 使用原生拖拽API - 最小化窗口的逻辑移到了主进程中
-          window.electronAPI.startFileDrag(fullPath)
+    // 根据类型选择不同的txt文件
+    let txtFile = 'moldata.txt'  // 默认为模型数据
 
-          // 设置一个定时器来恢复样式，因为dragend可能不会触发
-          setTimeout(() => {
-            isDragging.value = false
-            const items = document.querySelectorAll('.materialItem')
-            items.forEach((item) => item.classList.remove('dragging'))
-          }, 1000) // 1秒后恢复正常样式
-        } else {
-          // 如果没有找到文件，恢复正常样式
-          isDragging.value = false
-          e.target.classList.remove('dragging')
-          ElMessage.warning('在下载文件夹中找不到匹配的文件')
-        }
-      })
-      .catch((error) => {
-        // 出错时恢复正常样式
-        isDragging.value = false
-        e.target.classList.remove('dragging')
-        console.error('拖拽错误:', error)
-        ElMessage.error('准备拖拽文件时出错')
-      })
-  } else {
-    // 找不到文件信息时恢复正常样式
+    if (fileType === 'material') {
+      txtFile = 'matdata.txt'
+    } else if (fileType === 'light') {
+      txtFile = 'iesdata.txt'
+    }
+
+    console.log(`准备拖拽: 类型=${fileType}, 路径=${basePath}, 数据文件=${txtFile}`);
+
+    // 将路径写入文件并获取对应的脚本文件路径
+    const result = await window.electronAPI.prepareAndStartDrag(basePath, fileType, txtFile)
+
+    if (!result.success) {
+      throw new Error(result.error || '拖拽准备失败')
+    }
+
+  } catch (error) {
+    // 错误处理
+    console.error('拖拽准备失败:', error)
+    ElMessage.warning(error.message || '拖拽准备失败')
     isDragging.value = false
     e.target.classList.remove('dragging')
-    ElMessage.warning('找不到素材的本地文件信息')
   }
 }
 
 // 拖拽结束处理
 const handleDragEnd = (e) => {
+  console.log('拖拽结束')
   isDragging.value = false
-  e.target.classList.remove('dragging')
+}
+
+// 添加全局拖拽状态重置函数
+const resetDragState = () => {
+  if (isDragging.value) {
+    isDragging.value = false
+    console.log('全局重置拖拽状态')
+  }
 }
 
 // 平铺贴图
@@ -501,6 +592,11 @@ watch(
   }
 )
 
+// 监视 isDragging 状态变化
+watch(isDragging, (newValue) => {
+  console.log('拖拽状态变化:', newValue)
+})
+
 // 处理鼠标滚轮事件
 const handleWheel = (e) => {
   // 检查是否按下 Ctrl 键
@@ -517,6 +613,12 @@ const handleWheel = (e) => {
     }
   }
 }
+
+// 定义文件拖拽处理函数
+const handleStartFileDrag = (scriptPath, fileType) => {
+  // 调用 Electron 的文件拖拽 API
+  window.electronAPI.startFileDrag(scriptPath, fileType);
+};
 
 defineExpose({
   materialDataGet,
@@ -536,11 +638,25 @@ onMounted(() => {
 
   // 添加滚轮事件监听
   document.addEventListener('wheel', handleWheel, { passive: false })
+
+  // 添加全局鼠标释放事件监听，确保拖拽状态重置
+  window.addEventListener('mouseup', resetDragState)
+
+  // 监听 dragend 事件以防止元素处理不到
+  document.addEventListener('dragend', resetDragState)
+
+  // 添加拖拽处理监听
+  window.electronAPI.onStartFileDrag(handleStartFileDrag);
 })
 
 // 组件卸载时移除事件监听
 onUnmounted(() => {
   document.removeEventListener('wheel', handleWheel)
+  window.removeEventListener('mouseup', resetDragState)
+  document.removeEventListener('dragend', resetDragState)
+
+  // 移除拖拽监听
+  window.electronAPI.removeStartFileDragListener();
 })
 </script>
 
@@ -700,8 +816,9 @@ onUnmounted(() => {
     /* 拖拽中的样式 */
     &.dragging {
       opacity: 0.7;
-      border: 4px solid #427b02 !important;
-      transform: scale(0.95);
+      cursor: grabbing;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+      transform: scale(1.05);
     }
   }
 }

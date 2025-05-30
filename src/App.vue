@@ -1,5 +1,7 @@
 <script setup>
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+import { onMounted } from 'vue'
+import { usePathStore } from '@/stores'
 </script>
 
 <template>
@@ -33,3 +35,20 @@ import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
   }
 }
 </style>
+
+<script>
+export default {
+  setup() {
+    const pathStore = usePathStore()
+
+    onMounted(() => {
+      // 从 localStorage 初始化下载路径
+      const savedPath = localStorage.getItem('downloadPath')
+      if (savedPath) {
+        pathStore.setDownloadPath(savedPath)
+        console.log('初始化下载路径:', savedPath)
+      }
+    })
+  }
+}
+</script>

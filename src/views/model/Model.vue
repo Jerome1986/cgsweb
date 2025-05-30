@@ -212,46 +212,22 @@ onMounted(() => {
       <!--  分类  -->
       <div class="categoryPage">
         <!--   一级分类     -->
-        <Category
-          ref="topCategoryRef"
-          sub-title="new"
-          :data-list="topCate"
-          @changeCate="handleTopCate"
-        ></Category>
+        <Category ref="topCategoryRef" sub-title="new" :data-list="topCate" @changeCate="handleTopCate"></Category>
         <!--   二级分类     -->
-        <SubCategory
-          ref="subCateRef"
-          v-if="currentCateId"
-          :subCategoryData="currentSubCate"
-          @changeSubCate="handleSubCate"
-        ></SubCategory>
+        <SubCategory ref="subCateRef" v-if="currentCateId" :subCategoryData="currentSubCate"
+          @changeSubCate="handleSubCate"></SubCategory>
         <!--    标签    -->
-        <MaterialTags
-          ref="tagsRef"
-          @changeTags="handleChangeTags"
-        ></MaterialTags>
+        <MaterialTags ref="tagsRef" @changeTags="handleChangeTags"></MaterialTags>
         <!--   颜色     -->
-        <ColorTags
-          ref="colorsTagRef"
-          @changeColor="handleChangeColorsTag"
-        ></ColorTags>
+        <ColorTags ref="colorsTagRef" @changeColor="handleChangeColorsTag"></ColorTags>
       </div>
       <!--  筛选  -->
-      <Filter
-        ref="filterRef"
-        @search="handleSearch"
-        @clearSearch="handelClearSearch"
-        @filter="handleFilter"
-        @reset="handleReset"
-      ></Filter>
+      <Filter ref="filterRef" @search="handleSearch" @clearSearch="handelClearSearch" @filter="handleFilter"
+        @reset="handleReset"></Filter>
     </el-affix>
 
     <!--  素材  -->
-    <SourceMaterial
-      ref="materialRef"
-      type="模型"
-      :currentCateId="currentCateId"
-    ></SourceMaterial>
+    <SourceMaterial ref="materialRef" type="模型" :currentCateId="currentCateId"></SourceMaterial>
   </div>
 </template>
 
@@ -264,6 +240,7 @@ onMounted(() => {
   position: relative;
 
   .el-affix {
+
     /*分类组件*/
     .categoryPage {
       padding: 16px;
