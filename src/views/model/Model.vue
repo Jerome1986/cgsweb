@@ -8,6 +8,7 @@ import ColorTags from '@/components/ColorTags.vue'
 
 import { ref, onMounted } from 'vue'
 import { cateDataGetAll } from '@/api/cate'
+import { materialAllGet } from '@/api/material'
 import { useMaterialStore } from '@/stores'
 
 // 一级分类组件
@@ -69,11 +70,12 @@ const handleTopCate = (id) => {
   tagsRef.value.tagsActiveIndex = null
   // 重置颜色标签高亮
   colorsTagRef.value.colorActiveIndex = null
-  //  重置筛选框
-  filterRef.value.reset()
+  //  重置搜索框
+  filterRef.value.searchValue = ''
 }
 
 // 处理二级分类点击事件
+const subCateId = ref('')
 const handleSubCate = (subCate) => {
   // 如果为全部则根据一级分类id来渲染素材--否则根据二级分类id来渲染素材
   if (subCate._id === 'ALL') {
@@ -91,16 +93,17 @@ const handleSubCate = (subCate) => {
   // 重置颜色标签高亮
   colorsTagRef.value.colorActiveIndex = null
 
-  //  重置筛选框
-  filterRef.value.reset()
+  //  重置搜索框
+  filterRef.value.searchValue = ''
 }
 
 // 处理标签组件的点击事件
 const handleChangeTags = (tag) => {
   console.log('当前标签', tag)
   materialRef.value.tagsGetMaterials(tag)
-  //  重置筛选框
-  filterRef.value.reset()
+
+  //  重置搜索框
+  filterRef.value.searchValue = ''
 }
 
 // 处理颜色标签
@@ -113,8 +116,8 @@ const handleChangeColorsTag = (color) => {
       colorsTagRef.value.colorActiveIndex
     )
   }
-  //  重置筛选框
-  filterRef.value.reset()
+  //  重置搜索框
+  filterRef.value.searchValue = ''
 }
 
 // 处理搜索查询
@@ -127,9 +130,7 @@ const handleSearch = (value) => {
   // 重置一级分类高亮
   topCategoryRef.value.cateActiveIndex = null
   // 重置二级分类高亮
-  if (subCateRef.value) {
-    subCateRef.value.subActiveIndex = null
-  }
+  subCateRef.value.subActiveIndex = null
   // 重置标签高亮
   tagsRef.value.tagsActiveIndex = null
   // 重置颜色标签高亮
@@ -220,7 +221,7 @@ onMounted(() => {
         <!--   二级分类     -->
         <SubCategory
           ref="subCateRef"
-          v-if="currentSubCate.length > 0"
+          v-if="currentCateId"
           :subCategoryData="currentSubCate"
           @changeSubCate="handleSubCate"
         ></SubCategory>

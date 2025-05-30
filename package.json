@@ -2,35 +2,65 @@
   "name": "cgsweb-v",
   "version": "0.0.0",
   "private": true,
-  "main": "electron/main.js",
+  "description": "3D素材下载",
+  "author": "jerome",
+  "main": "./electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "electron:dev": "cross-env NODE_ENV=development concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
+    "electron:dev": "cross-env NODE_ENV=development concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron --no-sandbox .\"",
     "electron:build": "vite build && electron-builder",
+    "postinstall": "electron-builder install-app-deps",
     "lint": "eslint . --fix",
     "format": "prettier --write src/"
   },
+  "build": {
+    "directories": {
+      "output": "dist_electron"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "!**/node_modules/**",
+      "node_modules/axios/dist/**"
+    ],
+    "extraMetadata": {
+      "main": "./electron/main.js"
+    }
+  },
   "dependencies": {
+    "7zip-bin": "^5.2.0",
     "@element-plus/icons-vue": "^2.3.1",
+    "axios": "^1.8.4",
     "element-plus": "^2.9.7",
-    "eslint-plugin-prettier": "^5.2.3",
+    "extract-zip": "^2.0.1",
+    "node-7z": "^3.0.0",
     "pinia": "^3.0.1",
     "pinia-plugin-persistedstate": "^4.2.0",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
     "@eslint/js": "^9.21.0",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/eslint-config-prettier": "^10.2.0",
-    "axios": "^1.8.4",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "electron": "^35.0.3",
-    "electron-builder": "^25.1.8",
+    "electron-builder": "^26.0.12",
     "eslint": "^9.21.0",
+    "eslint-plugin-prettier": "^5.2.3",
     "eslint-plugin-vue": "~10.0.0",
     "globals": "^16.0.0",
     "prettier": "3.5.3",

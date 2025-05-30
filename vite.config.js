@@ -1,5 +1,4 @@
 import { fileURLToPath, URL } from 'node:url'
-
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
@@ -9,6 +8,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: './',
   plugins: [
     vue(),
     vueDevTools(),
@@ -23,5 +23,26 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
+  },
+  optimizeDeps: {
+    exclude: ['electron']
+  },
+  build: {
+    outDir: 'dist',
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url))
+      },
+      output: {
+        assetFileNames: 'assets/[name].[hash][extname]',
+        entryFileNames: 'assets/[name].[hash].js'
+      }
+    },
+    commonjsOptions: {
+      include: [/node_modules/, /electron/]
+    }
+  },
+  esbuild: {
+    format: 'cjs'
   }
 })

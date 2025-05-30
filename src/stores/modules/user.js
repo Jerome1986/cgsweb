@@ -20,9 +20,11 @@ export const useUserStore = defineStore(
         case 'user':
           userInfo.value.role = '普通用户'
           break
-        case 'vip':
-          userInfo.value.role = '会员'
+        case 'annual':
+          userInfo.value.role = '年费会员'
           break
+        case 'permanent':
+          userInfo.value.role = '永久会员'
       }
     }
 

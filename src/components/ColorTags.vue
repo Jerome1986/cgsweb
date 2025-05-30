@@ -34,6 +34,7 @@ defineExpose({
       class="colorItem"
       :class="{ colorActive: colorActiveIndex === index }"
       v-for="(item, index) in materialStore.colorTags"
+      :key="`${item}-${index}`"
       :style="{ backgroundColor: item }"
       @click="handleColor(item, index)"
     ></div>

@@ -2,7 +2,7 @@
 import VipHead from '@/views/vip/components/vipHead.vue'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { productsGetApi } from '@/api/products'
-import { payOrderApi, userUpdateCoins } from '@/api/order'
+import { orderUpdateVip, payOrderApi, userUpdateCoins } from '@/api/order'
 import { useOrderStore, useUserStore } from '@/stores'
 import { ElMessage } from 'element-plus'
 
@@ -64,6 +64,35 @@ const handleBuyCoins = async (product) => {
 // 购买会员
 const handleBuyMember = async (product) => {
   console.log('购买会员', product)
+  // 购买之前先判断用户是否为会员
+  if (
+    userStore.userInfo.role === '年费会员' ||
+    userStore.userInfo.role === '永久会员'
+  )
+    return ElMessage.error('当前已经是会员，请勿反复充值')
+
+  try {
+    const res = await payOrderApi(userStore.userInfo._id, product._id)
+    console.log('创建订单', res)
+    if (res.data.order_id) {
+      // 打开支付窗口
+      await window.electronAPI.openPaymentWindow({
+        url: res.data.pay_url,
+        order_id: res.data.order_id
+      })
+      // 此处要记录order_id，用于成功后查询订单，更新用户的状态
+      ordersStore.setCurrentVipOrder({
+        pay_order_type: product.productType,
+        membershipType: product.membershipType,
+        dailyDownloadLimit: product.dailyDownloadLimit
+      })
+    } else {
+      return ElMessage.error('订单创建失败')
+    }
+  } catch (error) {
+    console.log(error)
+    alert('支付过程中出错: ' + error.message)
+  }
 }
 
 // 创建一个处理函数的引用，这样可以在清理时使用相同的引用
@@ -83,6 +112,18 @@ const handlePaymentResult = async (status) => {
       userStore.setUserInfo({ coins: res.coins })
     }
     // 购买会员
+    if (ordersStore.currentCoinsOrder.pay_order_type === '购买会员') {
+      // 更新用户会员信息
+      console.log('开始更新会员信息了')
+      const res = await orderUpdateVip(
+        userStore.userInfo._id,
+        ordersStore.currentVipOrder.pay_order_type,
+        ordersStore.currentVipOrder.membershipType,
+        ordersStore.currentVipOrder.dailyDownloadLimit
+      )
+      console.log('更新结果', res)
+      userStore.setUserInfo({ role: res.role })
+    }
   } else {
     ElMessage.warning('支付未完成')
   }

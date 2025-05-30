@@ -25,13 +25,13 @@ defineExpose({
 </script>
 
 <template>
-  <div class="cate">
-    <div class="title cateBox">分类</div>
+  <div class="subCate">
+    <div class="title">分类</div>
     <div
       class="cateItem cateBox"
       :class="{ subActive: subActiveIndex === index }"
       v-for="(item, index) in subCategoryData"
-      :key="index"
+      :key="item._id"
       @click="changeSubCate(item, index)"
     >
       {{ item.name }}
@@ -41,19 +41,21 @@ defineExpose({
 
 <style scoped lang="scss">
 /*分类*/
-.cate {
+.subCate {
   display: flex;
   gap: 10px;
   margin-bottom: 8px;
 
   .title {
-    color: #999999;
+    padding: 4px 8px;
+    width: 60px;
+    text-align: center;
   }
 
   .cateBox {
     padding: 4px 8px;
     text-align: center;
-    width: 60px;
+    width: fit-content;
     cursor: pointer;
   }
 

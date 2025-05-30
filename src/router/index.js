@@ -1,7 +1,11 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import {
+  createRouter,
+  createWebHashHistory,
+  createWebHistory
+} from 'vue-router'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(import.meta.env.BASE_URL || './'),
   routes: [
     {
       path: '/',
@@ -18,7 +22,11 @@ const router = createRouter({
           path: '/material',
           component: () => import('@/views/material/Material.vue')
         },
-        { path: '/vip', component: () => import('@/views/vip/Vip.vue') }
+        { path: '/vip', component: () => import('@/views/vip/Vip.vue') },
+        {
+          path: '/full/:cover_url',
+          component: () => import('@/views/maps/fullScreen.vue')
+        }
       ]
     }
   ]

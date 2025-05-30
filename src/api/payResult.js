@@ -1,11 +1,6 @@
-// src/api/orderApi.js
-const request = require('axios')
+// 前端代码 (src/api/api.js)
+import { ipcRenderer } from 'electron'
 
-const orderGetApi = (order_id) => {
-  return request.get('https://etnrve3alw.gzg.sealos.run/order-get', {
-    params: { order_id }
-  })
+export const orderGetApi = async (params) => {
+  return await ipcRenderer.invoke('payResult-get', params)
 }
-
-// CommonJS 导出
-module.exports = { orderGetApi }

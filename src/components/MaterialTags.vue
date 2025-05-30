@@ -12,6 +12,7 @@ const emits = defineEmits(['changeTags'])
 
 // 处理标签点击
 const changeTags = (item, index) => {
+  console.log('标签', item)
   tagsActiveIndex.value = index
   // 转交给父组件处理
   emits('changeTags', item)
@@ -24,12 +25,12 @@ defineExpose({
 
 <template>
   <div class="cate">
-    <div class="title cateBox">标签</div>
+    <div class="title">标签</div>
     <div
       class="cateItem cateBox"
       :class="{ tagsActive: tagsActiveIndex === index }"
       v-for="(item, index) in materialStore.currentTags"
-      :key="index"
+      :key="`${item}-${index}`"
       @click="changeTags(item, index)"
     >
       {{ item }}
@@ -45,13 +46,15 @@ defineExpose({
   margin-bottom: 8px;
 
   .title {
-    color: #999999;
+    padding: 4px 8px;
+    width: 60px;
+    text-align: center;
   }
 
   .cateBox {
     padding: 4px 8px;
     text-align: center;
-    width: 60px;
+    width: fit-content;
     cursor: pointer;
   }
 

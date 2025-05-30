@@ -31,5 +31,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   removePaymentResult: (callback) => {
     ipcRenderer.removeListener('payment-result', callback)
-  }
+  },
+  // 添加获取目录中文件的方法
+  getFilesInDirectory: (dirPath, namePattern) => 
+    ipcRenderer.invoke('get-files-in-directory', dirPath, namePattern),
+  
+  // 添加窗口最小化方法
+  minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
+  
+  // 添加窗口恢复方法
+  restoreWindow: () => ipcRenderer.invoke('restore-window'),
+
+  // 添加拖拽最小化方法
+  enableDragMinimize: () => ipcRenderer.invoke('enable-drag-minimize'),
+
+  // 添加原生文件拖拽方法
+  startFileDrag: (filePath) => ipcRenderer.send('ondragstart', filePath)
 })

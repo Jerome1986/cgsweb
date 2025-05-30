@@ -49,7 +49,7 @@ defineExpose({
 
 <template>
   <div class="cate">
-    <div class="title cateBox">{{ title }}</div>
+    <div class="title">{{ title }}</div>
     <div
       @click="handleAll"
       :class="{ cateActive: isAll }"
@@ -61,7 +61,7 @@ defineExpose({
       class="cateItem cateBox"
       :class="{ cateActive: cateActiveIndex === index }"
       v-for="(item, index) in dataList"
-      :key="index"
+      :key="item._id"
       @click="handleChangeCate(item, index)"
     >
       {{ item.name }}
@@ -77,13 +77,19 @@ defineExpose({
   margin-bottom: 8px;
 
   .title {
-    color: #999999;
+    padding: 4px 8px;
+    width: 60px;
+    text-align: center;
+  }
+
+  .subtitle {
+    width: 60px;
   }
 
   .cateBox {
     padding: 4px 8px;
     text-align: center;
-    width: 60px;
+    width: fit-content;
     cursor: pointer;
   }
 

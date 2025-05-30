@@ -14,6 +14,13 @@
 
 /**
  * @typedef {Object} currentCoinsOrderModel 当前金币订单信息
- * @property {string} pay_order_type - 当前支付的订单id
+ * @property {string} pay_order_type - 当前支付的订单类型
  * @property {number} pay_order_amount - 当前充值的金币数量
+ */
+
+/**
+ * @typedef {Object} currentVipOrderModel 当前金币订单信息
+ * @property {string} pay_order_type - 当前支付的订单类型
+ * @property {string} membershipType - 当前充值的会员类型
+ * @property {number} dailyDownloadLimit - 当前会员每日下载次数
  */

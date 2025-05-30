@@ -62,3 +62,19 @@ export const userLoveListGet = (user_id) => {
 export const useCoins = (user_id, material_id) => {
   return request.put('/user-webCoins-update', { user_id, material_id })
 }
+
+/**
+ * 用户下载后更新下载次数
+ * /user-webLimits-update
+ * @param {string} user_id - 当前用户id
+ * @param {string} material_id - 当前素材id
+ * @return {Promise<resultModel>}  返回data为内容体，code 200为成功
+ */
+
+export const userDownLoadLimits = (user_id, material_id) => {
+  return request.put('/user-webLimits-update', { user_id, material_id })
+}
+
+/**
+ * 获取用户基本信息
+ */
