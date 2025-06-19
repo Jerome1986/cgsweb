@@ -22,6 +22,8 @@ function createWindow() {
     // 窗口最小高度
     minHeight: 600,
     minimizable: true,
+    // 设置窗口图标
+    icon: path.join(__dirname, '../assets/icons/logo.ico'),
     webPreferences: {
       // 预加载脚本，用于在渲染进程中安全地暴露主进程功能
       preload: path.join(__dirname, 'preload.js'),
@@ -767,8 +769,6 @@ ipcMain.handle('prepare-and-start-drag', async (event, basePath, fileType, txtFi
         const tempDir = app.getPath('temp')
         const tempIconPath = createEmptyIcon(tempDir)
 
-        await handleWindowVisibility(BrowserWindow.fromWebContents(event.sender))
-
         event.sender.startDrag({
           file: imageFile,
           icon: tempIconPath
@@ -823,8 +823,6 @@ ipcMain.handle('prepare-and-start-drag', async (event, basePath, fileType, txtFi
     console.log('临时脚本路径:', tempScriptPath)
 
     const tempIconPath = createEmptyIcon(tempDir)
-
-    await handleWindowVisibility(BrowserWindow.fromWebContents(event.sender))
 
     event.sender.startDrag({
       file: tempScriptPath,

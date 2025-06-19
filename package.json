@@ -1,5 +1,5 @@
 {
-  "name": "cgsweb-v",
+  "name": "cgsSpider",
   "version": "0.0.0",
   "private": true,
   "description": "3D素材下载",
@@ -20,9 +20,13 @@
     "directories": {
       "output": "dist_electron"
     },
+    "appId": "com.cgsweb.app",
+    "productName": "CGSSpider",
+    "icon": "./assets/icons/logo.ico",
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "./assets/icons/logo.ico",
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -32,6 +36,7 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "assets/**/*",
       "!**/node_modules/**",
       "node_modules/axios/dist/**"
     ],
@@ -42,6 +47,10 @@
       {
         "from": "resources",
         "to": "resources"
+      },
+      {
+        "from": "assets/icons",
+        "to": "assets/icons"
       }
     ],
     "asar": true

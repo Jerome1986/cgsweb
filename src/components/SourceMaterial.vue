@@ -762,7 +762,7 @@ onUnmounted(() => {
 <template>
   <div class="sourceMaterial">
     <div class="materialItem" v-for="(item, index) in materialData" :key="item._id"
-      :class="{ 'can-drag': isDownloaded(item._id), dragging: isDragging }" draggable="true"
+      :class="{ 'can-drag': isDownloaded(item._id) }" draggable="true"
       @dragstart="isDownloaded(item._id) ? handleDragStart($event, item) : $event.preventDefault()"
       @dragend="handleDragEnd($event)" :style="{ width: `${itemSize}px`, height: `${itemSize}px` }">
       <!-- 使用 el-image 替换背景图 -->
@@ -887,8 +887,7 @@ onUnmounted(() => {
         @include textShenglue(1);
       }
 
-      /*功能图标
-      */
+      /*功能图标*/
       .functionIcon {
         display: flex;
         flex-direction: column;
@@ -904,18 +903,6 @@ onUnmounted(() => {
     /* 可拖拽项的样式 */
     &.can-drag {
       cursor: grab;
-
-      &:active {
-        cursor: grabbing;
-      }
-    }
-
-    /* 拖拽中的样式 */
-    &.dragging {
-      opacity: 0.7;
-      cursor: grabbing;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-      transform: scale(1.05);
     }
   }
 }
