@@ -29,12 +29,19 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    assetsDir: 'assets',
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url))
       },
       output: {
-        assetFileNames: 'assets/[name].[hash][extname]',
+        assetFileNames: (assetInfo) => {
+          // 保持图标文件的原始路径
+          if (assetInfo.name.includes('icons/')) {
+            return assetInfo.name
+          }
+          return 'assets/[name].[hash][extname]'
+        },
         entryFileNames: 'assets/[name].[hash].js'
       }
     },

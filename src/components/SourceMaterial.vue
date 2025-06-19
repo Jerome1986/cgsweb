@@ -6,10 +6,12 @@ import { usePathStore, useUserStore } from '@/stores'
 import { ElMessage } from 'element-plus'
 import {
   useCoins,
+  userDownLoadLimits,
   userDownLoadListAdd,
   userDownLoadListGet,
   userLoveListAdd,
-  userLoveListGet
+  userLoveListGet,
+  usersGet
 } from '@/api/users'
 import { useRoute, useRouter } from 'vue-router'
 import fs from 'fs'
@@ -65,11 +67,8 @@ const isDragging = ref(false)
 
 // 获取所有素材
 const allMaterialListGet = async () => {
-  const res = await materialAllGet(
-    materialStore.pages.pagesNum,
-    materialStore.pages.pagesSize,
-    props.type
-  )
+  // 获取所有数据，不使用分页
+  const res = await materialAllGet(1, 999999, props.type)
   allMaterial.value = res.data.list
   materialData.value = res.data.list
   // 存储返回的总条数
@@ -79,21 +78,29 @@ const allMaterialListGet = async () => {
 // 获取当前素材数据
 const materialDataGet = async () => {
   await allMaterialListGet()
-  if (!props.currentCateId) {
-    materialStore.setSelectedMaterials(allMaterial.value)
-  } else {
-    const filteredData = allMaterial.value.filter(
-      (item) =>
-        item.top_id === props.currentCateId ||
-        item.sub_id === props.currentCateId
+  let filteredData = allMaterial.value
+
+  // 根据当前分类过滤数据
+  if (props.currentCateId) {
+    // 如果是一级分类，需要包含其下所有二级分类的数据
+    filteredData = allMaterial.value.filter(
+      (item) => item.top_id === props.currentCateId || item.sub_id === props.currentCateId
     )
-    materialStore.setSelectedMaterials(filteredData)
   }
 
+  // 更新总数，用于分页计算
+  materialStore.setMaterialTotal(filteredData.length)
+
+  // 保存完整的过滤数据用于标签和颜色筛选
+  materialStore.setSelectedMaterials(filteredData)
+
+  // 计算当前页的数据
+  const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
+  const end = start + materialStore.pages.pagesSize
+  materialData.value = filteredData.slice(start, end)
+
   // 封面图预览列表
-  currentCoverImg.value = materialStore.selectedMaterials.map(
-    (item) => item.cover_url
-  )
+  currentCoverImg.value = materialData.value.map((item) => item.cover_url)
 
   // 标签筛选和颜色筛选
   updateTagsAndColors()
@@ -132,13 +139,19 @@ const applyFilters = () => {
 
   // 颜色筛选
   if (selectedColor.value) {
-    filtered = filtered.filter((item) =>
-      item.colors.includes(selectedColor.value)
-    )
+    filtered = filtered.filter((item) => item.colors.includes(selectedColor.value))
   }
 
-  materialData.value = filtered
-  currentCoverImg.value = filtered.map((item) => item.cover_url)
+  // 更新总数，用于分页计算
+  materialStore.setMaterialTotal(filtered.length)
+
+  // 计算当前页的数据
+  const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
+  const end = start + materialStore.pages.pagesSize
+  materialData.value = filtered.slice(start, end)
+
+  // 更新预览图列表
+  currentCoverImg.value = materialData.value.map((item) => item.cover_url)
 }
 
 // 标签筛选
@@ -166,24 +179,53 @@ const handleSearch = async (searchValue) => {
       searchValue,
       materialStore.pages.pagesNum,
       materialStore.pages.pagesSize,
-      '模型'
+      props.type
     )
-    materialData.value = res.data
+    let searchResults = res.data
+
+    // 如果有分类选择，过滤搜索结果
+    if (props.currentCateId) {
+      searchResults = searchResults.filter(
+        (item) => item.top_id === props.currentCateId || item.sub_id === props.currentCateId
+      )
+    }
+
+    // 更新总数，用于分页计算
+    materialStore.setMaterialTotal(searchResults.length)
+
+    // 计算当前页的数据
+    const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
+    const end = start + materialStore.pages.pagesSize
+    materialData.value = searchResults.slice(start, end)
+
+    // 更新预览图列表
+    currentCoverImg.value = materialData.value.map((item) => item.cover_url)
   }
 }
 
-// 处理下载成功后扣除用户金币或次数的函数
+// 处理下载成功后扣除用户金币
 const handleUserCoinsOrTimes = async (material_id) => {
   // 重置用户下载列表
   await downLoadListGet()
   pathStore.setLocalDownloadPath(userDownLoadList.value)
-  // 如果用户有金币则扣除金币，如果没有金币，但用户为会员，则检查当日是否有下载次数，如果有，则扣除-1，且记录当日剩余下载次数
-  // 1.查询当前用户金币数量
-
   const res = await useCoins(userStore.userInfo._id, material_id)
   console.log('更新金币结果', res)
   if (res.coins) {
     userStore.setUserInfo({ coins: res.coins })
+  }
+}
+
+// 处理下载成功后扣除用户下载次数
+const handleUserDownLimits = async (material_id) => {
+  // 重置用户下载列表
+  await downLoadListGet()
+  pathStore.setLocalDownloadPath(userDownLoadList.value)
+  const res = await userDownLoadLimits(userStore.userInfo._id, material_id)
+  console.log('更新剩余下载次数结果', res)
+  if (res.code === 200) {
+    ElMessage.success(res.message)
+  } else {
+    throw ElMessage.error(res.message)
   }
 }
 
@@ -196,7 +238,7 @@ const handleDownload = async (item) => {
   console.log('下载', item)
 
   // 从 pathStore 获取下载路径
-  const basePath = pathStore.downloadPath;
+  const basePath = pathStore.downloadPath
 
   // 如果下载路径未设置或显示为"未设置"
   if (!basePath || basePath === '未设置') {
@@ -205,151 +247,152 @@ const handleDownload = async (item) => {
   }
 
   try {
-    // 扣除用户金币和下载次数
-    await handleUserCoinsOrTimes(item._id)
-
+    // 需要先检查用户是否有下载权限，要么金币>5,要么是会员且有下载次数
+    const userRes = await usersGet(userStore.userInfo._id)
+    if (userRes.data.coins > 5) {
+      // 扣除用户金币
+      await handleUserCoinsOrTimes(item._id)
+    } else {
+      // 扣除下载次数
+      await handleUserDownLimits(item._id)
+    }
     // 改进类型判断逻辑
-    let category = 'model'; // 默认为模型
+    let category = 'model' // 默认为模型
 
     // 基于路由路径判断类型
     if (route.path.includes('/material')) {
-      category = 'material';
+      category = 'material'
     } else if (route.path.includes('/lighting')) {
-      category = 'light';
+      category = 'light'
     } else if (route.path.includes('/maps')) {
-      category = 'texture';
+      category = 'texture'
     }
 
     // 然后基于item.type进一步判断，如果有的话
     if (item.type) {
-      if (item.type.includes('材质')) category = 'material';
-      else if (item.type.includes('灯光')) category = 'light';
-      else if (item.type.includes('贴图')) category = 'texture';
-      else if (item.type.includes('模型')) category = 'model';
+      if (item.type.includes('材质')) category = 'material'
+      else if (item.type.includes('灯光')) category = 'light'
+      else if (item.type.includes('贴图')) category = 'texture'
+      else if (item.type.includes('模型')) category = 'model'
     }
 
-    console.log('使用类别:', category);
+    console.log('使用类别:', category)
 
     // 提取必要的原始数据类型并确保获取正确的URL
-    let downloadUrl = '';
+    let downloadUrl = ''
 
     // 验证文件URL数组
     if (Array.isArray(item.files_url) && item.files_url.length > 0) {
-      downloadUrl = item.files_url[0];
+      downloadUrl = item.files_url[0]
     } else if (typeof item.files_url === 'string') {
       // 如果files_url是字符串而不是数组
-      downloadUrl = item.files_url;
+      downloadUrl = item.files_url
     } else {
-      throw new Error('无效的文件URL');
+      throw new Error('无效的文件URL')
     }
 
     // 验证URL格式
     if (!downloadUrl || !downloadUrl.startsWith('http')) {
-      throw new Error(`无效的下载URL: ${downloadUrl}`);
+      throw new Error(`无效的下载URL: ${downloadUrl}`)
     }
 
-    console.log('下载URL:', downloadUrl);
+    console.log('下载URL:', downloadUrl)
 
-    const fileName = item.name || downloadUrl.split('/').pop() || `file_${Date.now()}.zip`;
-    const itemType = String(item.type || props.type);
-    const materialId = String(item._id);
+    const fileName = item.name || downloadUrl.split('/').pop() || `file_${Date.now()}.zip`
+    const itemType = String(item.type || props.type)
+    const materialId = String(item._id)
 
-    ElMessage.warning('已添加到下载列表');
+    ElMessage.warning('已添加到下载列表')
 
     // 使用带类别信息的路径构建
-    const savePath = await window.electronAPI.joinPaths(basePath, fileName, category);
-    console.log('保存路径:', savePath);
+    const savePath = await window.electronAPI.joinPaths(basePath, fileName, category)
+    console.log('保存路径:', savePath)
 
     // 执行下载，传递所有需要的参数
-    const result = await window.electronAPI.downloadFile(
-      downloadUrl,
-      savePath,
-      category,
-      fileName
-    );
+    const result = await window.electronAPI.downloadFile(downloadUrl, savePath, category, fileName)
 
     if (!result) {
-      throw new Error('下载失败: 未收到下载结果');
+      throw new Error('下载失败: 未收到下载结果')
     }
 
     if (result.success) {
       // 下载成功，尝试解压
       try {
-        console.log('尝试自动解压文件:', result.path);
-        const extractResult = await window.electronAPI.extractArchive(result.path);
-        console.log('解压完成，返回结果:', extractResult);
+        console.log('尝试自动解压文件:', result.path)
+        const extractResult = await window.electronAPI.extractArchive(result.path)
+        console.log('解压完成，返回结果:', extractResult)
 
         if (extractResult) {
-          ElMessage.success(`下载并解压成功`);
+          ElMessage.success(`下载并解压成功`)
 
           // 添加到本地下载路径列表
           pathStore.setLocalDownloadPath({
             material_id: materialId,
             localPath: extractResult
-          });
+          })
 
           // 下载成功后添加到用户的下载列表
-          const addRes = await userDownLoadListAdd(userStore.userInfo._id, materialId);
+          const addRes = await userDownLoadListAdd(userStore.userInfo._id, materialId)
 
           if (addRes.code === 200) {
-            ElMessage.success(`${addRes.message}`);
+            ElMessage.success(`${addRes.message}`)
 
             // 刷新下载列表
-            await downLoadListGet();
+            await downLoadListGet()
           }
 
           // 解压成功后删除原始 zip 文件
           try {
-            console.log('尝试删除原始 zip 文件:', result.path);
-            await window.electronAPI.deleteFile(result.path);
-            console.log('原始压缩文件已删除');
+            console.log('尝试删除原始 zip 文件:', result.path)
+            await window.electronAPI.deleteFile(result.path)
+            console.log('原始压缩文件已删除')
           } catch (deleteError) {
-            console.warn('删除原始压缩文件失败:', deleteError);
+            console.warn('删除原始压缩文件失败:', deleteError)
           }
 
           return {
             success: true,
             downloadPath: result.path,
             extractPath: extractResult
-          };
+          }
         } else {
-          throw new Error('解压返回结果为空');
+          throw new Error('解压返回结果为空')
         }
       } catch (extractError) {
-        console.error('解压过程出错:', extractError);
-        ElMessage.warning(`文件已下载，但解压失败: ${extractError.message || '未知错误'}`);
+        console.error('解压过程出错:', extractError)
+        ElMessage.warning(`文件已下载，但解压失败: ${extractError.message || '未知错误'}`)
 
         // 即使解压失败，也添加到下载列表
         pathStore.setLocalDownloadPath({
           material_id: materialId,
           localPath: path.dirname(result.path)
-        });
+        })
 
         // 下载成功后添加到用户的下载列表
-        const addRes = await userDownLoadListAdd(userStore.userInfo._id, materialId);
+        const addRes = await userDownLoadListAdd(userStore.userInfo._id, materialId)
         if (addRes.code === 200) {
-          ElMessage.success(`${addRes.message}`);
-          await downLoadListGet();
+          ElMessage.success(`${addRes.message}`)
+          await downLoadListGet()
         }
 
         return {
           success: true,
           downloadPath: result.path,
           extractError
-        };
+        }
       }
     } else {
-      throw new Error(result.error || '下载失败');
+      throw new Error(result.error || '下载失败')
     }
   } catch (error) {
-    console.error('下载出错:', error);
-    ElMessage.error(`下载失败: ${error.message || '未知错误'}`);
+    console.error('下载出错:', error)
+    ElMessage.error(`下载失败: ${error.message || '未知错误'}`)
     return {
       success: false,
       error
-    };
+    }
   }
-};
+}
 
 /**
  * 用户下载列表
@@ -365,20 +408,40 @@ const downLoadListGet = async () => {
 // 检查素材是否已下载
 const isDownloaded = computed(() => {
   return (materialId) => {
-    return pathStore.localDownloadPath.some(
-      item => item.material_id === materialId
-    )
+    return pathStore.localDownloadPath.some((item) => item.material_id === materialId)
   }
 })
 
 // 本机有
-const localMaterials = () => {
-  const downloadIds = new Set(
-    userDownLoadList.value.map((item) => item.material_id)
-  )
-  materialData.value = allMaterial.value.filter((material) =>
-    downloadIds.has(material._id)
-  )
+const localMaterials = async () => {
+  // 先获取当前类型的所有素材
+  const res = await materialAllGet(1, 999999, props.type)
+  allMaterial.value = res.data.list
+
+  // 过滤出已下载的素材
+  const downloadIds = new Set(pathStore.localDownloadPath.map((item) => item.material_id))
+  let filteredMaterials = allMaterial.value.filter((material) => downloadIds.has(material._id))
+
+  // 如果有选中的分类，根据分类进行过滤
+  if (props.currentCateId) {
+    filteredMaterials = filteredMaterials.filter(
+      (item) => item.top_id === props.currentCateId || item.sub_id === props.currentCateId
+    )
+  }
+
+  // 更新总数，用于分页计算
+  materialStore.setMaterialTotal(filteredMaterials.length)
+
+  // 保存完整的过滤数据用于标签和颜色筛选
+  materialStore.setSelectedMaterials(filteredMaterials)
+
+  // 计算当前页的数据
+  const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
+  const end = start + materialStore.pages.pagesSize
+  materialData.value = filteredMaterials.slice(start, end)
+
+  // 更新预览图列表
+  currentCoverImg.value = materialData.value.map((item) => item.cover_url)
 }
 
 // 将素材添加到收藏列表
@@ -408,13 +471,35 @@ const isLove = computed(() => (material_id) => {
 })
 
 // 已收藏
-const loveMaterials = () => {
-  const userLoveListIds = new Set(
-    userLoveList.value.map((item) => item.material_id)
-  )
-  materialData.value = allMaterial.value.filter((material) =>
-    userLoveListIds.has(material._id)
-  )
+const loveMaterials = async () => {
+  // 先获取当前类型的所有素材
+  const res = await materialAllGet(1, 999999, props.type)
+  allMaterial.value = res.data.list
+
+  // 过滤出已收藏的素材
+  const loveIds = new Set(userLoveList.value.map((item) => item.material_id))
+  let filteredMaterials = allMaterial.value.filter((material) => loveIds.has(material._id))
+
+  // 如果有选中的分类，根据分类进行过滤
+  if (props.currentCateId) {
+    filteredMaterials = filteredMaterials.filter(
+      (item) => item.top_id === props.currentCateId || item.sub_id === props.currentCateId
+    )
+  }
+
+  // 更新总数，用于分页计算
+  materialStore.setMaterialTotal(filteredMaterials.length)
+
+  // 保存完整的过滤数据用于标签和颜色筛选
+  materialStore.setSelectedMaterials(filteredMaterials)
+
+  // 计算当前页的数据
+  const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
+  const end = start + materialStore.pages.pagesSize
+  materialData.value = filteredMaterials.slice(start, end)
+
+  // 更新预览图列表
+  currentCoverImg.value = materialData.value.map((item) => item.cover_url)
 }
 
 /**
@@ -426,18 +511,35 @@ const localLove = ref([])
 const localLoveListGet = () => {
   localLove.value = [...userLoveList.value, ...userDownLoadList.value]
   const localLoveIds = new Set(localLove.value.map((item) => item.material_id))
-  materialData.value = allMaterial.value.filter((material) =>
-    localLoveIds.has(material._id)
-  )
+  let filteredMaterials = allMaterial.value.filter((material) => localLoveIds.has(material._id))
+
+  // 如果有选中的分类，根据分类进行过滤
+  if (props.currentCateId) {
+    filteredMaterials = filteredMaterials.filter(
+      (item) => item.top_id === props.currentCateId || item.sub_id === props.currentCateId
+    )
+  }
+
+  // 更新总数，用于分页计算
+  materialStore.setMaterialTotal(filteredMaterials.length)
+
+  // 保存完整的过滤数据用于标签和颜色筛选
+  materialStore.setSelectedMaterials(filteredMaterials)
+
+  // 计算当前页的数据
+  const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
+  const end = start + materialStore.pages.pagesSize
+  materialData.value = filteredMaterials.slice(start, end)
+
+  // 更新预览图列表
+  currentCoverImg.value = materialData.value.map((item) => item.cover_url)
 }
 
 // 根据当前选择素材打开本地下载路径
 const openLocalMaterial = async (material_id) => {
   console.log(material_id)
   // 将素材进行匹配
-  const filterLocal = pathStore.localDownloadPath.filter(
-    (item) => item.material_id === material_id
-  )
+  const filterLocal = pathStore.localDownloadPath.filter((item) => item.material_id === material_id)
   if (!filterLocal.length) {
     return ElMessage.warning('当前素材还没有下载')
   }
@@ -462,9 +564,7 @@ const handleDragStart = async (e, item) => {
 
   try {
     // 查找本地下载信息
-    const localPathInfo = pathStore.localDownloadPath.find(
-      path => path.material_id === item._id
-    )
+    const localPathInfo = pathStore.localDownloadPath.find((path) => path.material_id === item._id)
 
     if (!localPathInfo) {
       throw new Error('找不到素材的本地文件信息')
@@ -487,7 +587,7 @@ const handleDragStart = async (e, item) => {
     }
 
     // 根据类型选择不同的txt文件
-    let txtFile = 'moldata.txt'  // 默认为模型数据
+    let txtFile = 'moldata.txt' // 默认为模型数据
 
     if (fileType === 'material') {
       txtFile = 'matdata.txt'
@@ -495,7 +595,7 @@ const handleDragStart = async (e, item) => {
       txtFile = 'iesdata.txt'
     }
 
-    console.log(`准备拖拽: 类型=${fileType}, 路径=${basePath}, 数据文件=${txtFile}`);
+    console.log(`准备拖拽: 类型=${fileType}, 路径=${basePath}, 数据文件=${txtFile}`)
 
     // 将路径写入文件并获取对应的脚本文件路径
     const result = await window.electronAPI.prepareAndStartDrag(basePath, fileType, txtFile)
@@ -503,7 +603,6 @@ const handleDragStart = async (e, item) => {
     if (!result.success) {
       throw new Error(result.error || '拖拽准备失败')
     }
-
   } catch (error) {
     // 错误处理
     console.error('拖拽准备失败:', error)
@@ -617,8 +716,8 @@ const handleWheel = (e) => {
 // 定义文件拖拽处理函数
 const handleStartFileDrag = (scriptPath, fileType) => {
   // 调用 Electron 的文件拖拽 API
-  window.electronAPI.startFileDrag(scriptPath, fileType);
-};
+  window.electronAPI.startFileDrag(scriptPath, fileType)
+}
 
 defineExpose({
   materialDataGet,
@@ -646,7 +745,7 @@ onMounted(() => {
   document.addEventListener('dragend', resetDragState)
 
   // 添加拖拽处理监听
-  window.electronAPI.onStartFileDrag(handleStartFileDrag);
+  window.electronAPI.onStartFileDrag(handleStartFileDrag)
 })
 
 // 组件卸载时移除事件监听
@@ -656,18 +755,16 @@ onUnmounted(() => {
   document.removeEventListener('dragend', resetDragState)
 
   // 移除拖拽监听
-  window.electronAPI.removeStartFileDragListener();
+  window.electronAPI.removeStartFileDragListener()
 })
 </script>
 
 <template>
   <div class="sourceMaterial">
     <div class="materialItem" v-for="(item, index) in materialData" :key="item._id"
-      :class="{ 'can-drag': isDownloaded(item._id), dragging: isDragging }" draggable="true" @dragstart="
-        isDownloaded(item._id)
-          ? handleDragStart($event, item)
-          : $event.preventDefault()
-        " @dragend="handleDragEnd($event)" :style="{ width: `${itemSize}px`, height: `${itemSize}px` }">
+      :class="{ 'can-drag': isDownloaded(item._id), dragging: isDragging }" draggable="true"
+      @dragstart="isDownloaded(item._id) ? handleDragStart($event, item) : $event.preventDefault()"
+      @dragend="handleDragEnd($event)" :style="{ width: `${itemSize}px`, height: `${itemSize}px` }">
       <!-- 使用 el-image 替换背景图 -->
       <el-image class="material-image" :src="item.cover_url" :zoom-rate="1.2" :max-scale="7" :min-scale="0.2"
         show-progress :preview-teleported="true" :preview-src-list="currentCoverImg" fit="cover" hide-on-click-modal
@@ -699,7 +796,7 @@ onUnmounted(() => {
           <i v-if="isLove(item._id)" class="iconfont icon-aixin1" style="color: #fb4409"
             @click="handleFunction('love', item._id)"></i>
           <!--  未收藏  -->
-          <i v-else class="iconfont icon-aixin" @click="handleFunction('love', item._id)"></i>
+          <i v-else class="iconfont icon-aixin hover-visible" @click="handleFunction('love', item._id)"></i>
         </div>
       </div>
     </div>

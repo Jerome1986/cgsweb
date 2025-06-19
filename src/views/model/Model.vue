@@ -126,14 +126,9 @@ const handleSearch = (value) => {
 
   // 查询获取素材
   materialRef.value.searchMaterial(value)
-  currentSubCate.value = []
-  // 重置一级分类高亮
-  topCategoryRef.value.cateActiveIndex = null
-  // 重置二级分类高亮
-  subCateRef.value.subActiveIndex = null
-  // 重置标签高亮
+
+  // 只重置标签相关的高亮
   tagsRef.value.tagsActiveIndex = null
-  // 重置颜色标签高亮
   colorsTagRef.value.colorActiveIndex = null
 }
 
@@ -181,17 +176,17 @@ const handleFilter = (checkListFilter) => {
     case hasDownload:
       console.log('下载')
       materialRef.value.localMaterials()
-      resetCateTag()
+      // 不再重置分类
       break
     case hasCollect:
       console.log('收藏')
       materialRef.value.loveMaterials()
-      resetCateTag()
+      // 不再重置分类
       break
-    // 无选择
+    // 无选择 - 显示当前分类的所有素材
     default:
-      console.log('已取消')
-      handleReset()
+      console.log('显示当前分类素材')
+      materialRef.value.materialDataGet('模型', currentCateId.value)
       break
   }
 }

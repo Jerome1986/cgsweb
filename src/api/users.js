@@ -77,4 +77,11 @@ export const userDownLoadLimits = (user_id, material_id) => {
 
 /**
  * 获取用户基本信息
+ * /user-web-get
+ * @param {string} user_id - 用户id
+ * @return {Promise<resultModel>} 返回data为内容体，code 200为成功
  */
+
+export const usersGet = (user_id) => {
+  return request.get('/user-web-get', { params: { user_id } })
+}

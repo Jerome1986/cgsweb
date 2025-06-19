@@ -37,12 +37,7 @@ export const tagGetMaterial = (tag, pagesNum, pagesSize) => {
  * @returns {Promise<resultModel>} - 返回一个Promise，resolve为data为内容信息
  */
 
-export const searchMaterial = (
-  searchValue,
-  pagesNum,
-  pagesSize,
-  materialType
-) => {
+export const searchMaterial = (searchValue, pagesNum, pagesSize, materialType) => {
   return request.post('/material-search', {
     searchValue,
     pagesNum,

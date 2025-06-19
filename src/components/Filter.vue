@@ -70,36 +70,20 @@ defineExpose({
   <div class="filter">
     <!--  分页  -->
     <div class="example-pagination-block">
-      <el-pagination
-        background
-        v-model:current-page="materialStore.pages.pagesNum"
-        v-model:page-size="materialStore.pages.pagesSize"
-        layout="total, prev, pager, next"
-        :total="materialStore.materialTotal"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
+      <el-pagination background v-model:current-page="materialStore.pages.pagesNum"
+        v-model:page-size="materialStore.pages.pagesSize" :page-sizes="[10, 20, 30, 50]"
+        layout="total, sizes, prev, pager, next" :total="materialStore.materialTotal" @size-change="handleSizeChange"
+        @current-change="handleCurrentChange" />
     </div>
     <!-- 搜索 -->
     <div class="search">
-      <el-input
-        class="custom-input"
-        v-model="searchValue"
-        placeholder="请输入关键词"
-        :prefix-icon="Search"
-        clearable
-        @clear="handleClear"
-      />
+      <el-input class="custom-input" v-model="searchValue" placeholder="请输入关键词" :prefix-icon="Search" clearable
+        @clear="handleClear" />
       <div class="searchBtn" @click="searchGetMaterial">查询</div>
     </div>
     <!--   筛选区   -->
     <div class="filter">
-      <el-checkbox-group
-        fill="#437a02"
-        text-color="#437a02"
-        v-model="checkListFilter"
-        @change="changeFilter"
-      >
+      <el-checkbox-group fill="#437a02" text-color="#437a02" v-model="checkListFilter" @change="changeFilter">
         <!--        <el-checkbox label="全局搜索" value="allSearch" />-->
         <el-checkbox label="本机有" value="download" />
         <el-checkbox label="已收藏" value="collect" />
@@ -119,9 +103,11 @@ defineExpose({
   padding: 0 8px;
   height: 40px;
   background-color: #1a1a1a;
+
   /*分页*/
   .example-pagination-block {
     :deep(.el-pagination.is-background) {
+
       .btn-prev,
       .btn-next,
       .el-pager li {
@@ -168,6 +154,7 @@ defineExpose({
       }
     }
   }
+
   /*搜索*/
   .search {
     flex: 1;
@@ -178,6 +165,7 @@ defineExpose({
     margin-left: 8px;
     margin-right: 40px;
     font-size: 14px;
+
     /*搜索框*/
     .custom-input {
       width: 100%;
@@ -195,6 +183,7 @@ defineExpose({
         color: #fff;
       }
     }
+
     /*搜索按钮*/
     .searchBtn {
       margin-left: 8px;
@@ -205,6 +194,7 @@ defineExpose({
       }
     }
   }
+
   /*筛选*/
   .filter {
     display: flex;
@@ -216,6 +206,7 @@ defineExpose({
       gap: 16px; // 复选框之间的间距
 
       .el-checkbox {
+
         /* 未选中状态的文字颜色 */
         .el-checkbox__label {
           color: #fff;

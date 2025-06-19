@@ -21,7 +21,7 @@ export const useMaterialStore = defineStore('material', () => {
   // 分页
   const pages = ref({
     pagesNum: 1,
-    pagesSize: 10
+    pagesSize: 30
   })
 
   // 设置页码

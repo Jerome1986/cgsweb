@@ -39,20 +39,15 @@ export const usePathStore = defineStore(
      * @param {localPathModel} pathValue - 每次下载添加的素材和本地路径
      */
     const setLocalDownloadPath = (pathValue) => {
-      const existIndex = localDownloadPath.value.findIndex(
-        item => item.material_id === pathValue.material_id
-      )
-      
+      const existIndex = localDownloadPath.value.findIndex((item) => item.material_id === pathValue.material_id)
+
       if (existIndex !== -1) {
         localDownloadPath.value[existIndex] = pathValue
       } else {
         localDownloadPath.value.push(pathValue)
       }
-      
-      localStorage.setItem(
-        'localDownloadPaths',
-        JSON.stringify(localDownloadPath.value)
-      )
+
+      localStorage.setItem('localDownloadPaths', JSON.stringify(localDownloadPath.value))
     }
 
     /**
@@ -61,9 +56,7 @@ export const usePathStore = defineStore(
      * @return {string | null} 本地路径或null
      */
     const getLocalPath = (materialId) => {
-      const found = localDownloadPath.value.find(
-        item => item.material_id === materialId
-      )
+      const found = localDownloadPath.value.find((item) => item.material_id === materialId)
       return found ? found.localPath : null
     }
 
