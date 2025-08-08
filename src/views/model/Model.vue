@@ -1,15 +1,14 @@
 <script setup>
 import Category from '@/components/Category.vue'
 import Filter from '@/components/Filter.vue'
-import SourceMaterial from '@/components/SourceMaterial.vue'
 import MaterialTags from '@/components/MaterialTags.vue'
+import SourceMaterial from '@/components/SourceMaterial.vue'
 import SubCategory from '@/components/SubCategory.vue'
 import ColorTags from '@/components/ColorTags.vue'
 
 import { ref, onMounted } from 'vue'
-import { cateDataGetAll } from '@/api/cate'
-import { materialAllGet } from '@/api/material'
 import { useMaterialStore } from '@/stores'
+import { useCateStore } from '@/stores/modules/cate'
 
 // 一级分类组件
 const topCategoryRef = ref(null)
@@ -23,45 +22,28 @@ const tagsRef = ref(null)
 const filterRef = ref(null)
 // 素材状态管理
 const materialStore = useMaterialStore()
-
-/**
- * 一级分类
- * @type {import('vue').Ref<topCateModel[]>}
- */
-const topCate = ref([])
-
-/**
- * 二级分类
- * @type {import('vue').Ref<subCateModel[]>}
- */
-const subCate = ref([])
-
-// 一次性获取所有分类
-const cateGetAll = async () => {
-  const res = await cateDataGetAll()
-  console.log(res.data.list)
-  // 一级分类
-  topCate.value = res.data.list.filter((item) => item.type === '模型')
-
-  // 二级分类
-  subCate.value = topCate.value.flatMap((item) => item.subCategories || [])
-}
+const cateStore = useCateStore()
 
 // 当前选择的分类id
-const currentCateId = ref('')
+const currentMapsCateId = ref('NEW')
 
 // 处理一级分类的点击事件
 const currentSubCate = ref([])
-const topCateId = ref('')
-const handleTopCate = (id) => {
+const topCateId = ref('') // 添加一级分类ID变量
+const handleTopCate = async (id) => {
   console.log('一级分类id', id)
-  topCateId.value = id
-  currentCateId.value = topCateId.value
-  // 根据当前一级分类id筛选二级分类
-  currentSubCate.value = subCate.value.filter((item) => item.parent_id === id)
-  currentSubCate.value.unshift({ _id: 'ALL', en_name: 'all', name: '全部' })
+  await cateStore.cateSubGet(id)
+  currentMapsCateId.value = id
+  topCateId.value = id // 保存一级分类ID
+
+  currentSubCate.value = cateStore.cateSubList
+
+  if (currentSubCate.value.length > 0) {
+    currentSubCate.value.unshift({ _id: 'ALL', en_name: 'all', name: '全部' })
+  }
+
   // 获取一级分类素材
-  materialRef.value.materialDataGet('模型', currentCateId.value)
+
   // 重置二级分类的高亮状态
   if (subCateRef.value) {
     subCateRef.value.subActiveIndex = null
@@ -70,22 +52,20 @@ const handleTopCate = (id) => {
   tagsRef.value.tagsActiveIndex = null
   // 重置颜色标签高亮
   colorsTagRef.value.colorActiveIndex = null
-  //  重置搜索框
-  filterRef.value.searchValue = ''
+  //  重置筛选框
+  filterRef.value.reset()
 }
 
 // 处理二级分类点击事件
-const subCateId = ref('')
 const handleSubCate = (subCate) => {
   // 如果为全部则根据一级分类id来渲染素材--否则根据二级分类id来渲染素材
   if (subCate._id === 'ALL') {
-    currentCateId.value = topCateId.value
+    currentMapsCateId.value = topCateId.value
   } else {
-    currentCateId.value = subCate._id
+    currentMapsCateId.value = subCate._id
   }
 
   // 利用素材组件暴露的方法来渲染
-  materialRef.value.materialDataGet('模型', currentCateId.value)
 
   // 重置标签高亮
   tagsRef.value.tagsActiveIndex = null
@@ -93,17 +73,16 @@ const handleSubCate = (subCate) => {
   // 重置颜色标签高亮
   colorsTagRef.value.colorActiveIndex = null
 
-  //  重置搜索框
-  filterRef.value.searchValue = ''
+  //  重置筛选框
+  filterRef.value.reset()
 }
 
 // 处理标签组件的点击事件
 const handleChangeTags = (tag) => {
   console.log('当前标签', tag)
   materialRef.value.tagsGetMaterials(tag)
-
-  //  重置搜索框
-  filterRef.value.searchValue = ''
+  //  重置筛选框
+  filterRef.value.reset()
 }
 
 // 处理颜色标签
@@ -111,13 +90,10 @@ const colorsTagRef = ref(null)
 const handleChangeColorsTag = (color) => {
   console.log('当前颜色下标', colorsTagRef.value.colorActiveIndex)
   if (colorsTagRef.value) {
-    materialRef.value.colorGetMaterials(
-      color,
-      colorsTagRef.value.colorActiveIndex
-    )
+    materialRef.value.colorGetMaterials(color, colorsTagRef.value.colorActiveIndex)
   }
-  //  重置搜索框
-  filterRef.value.searchValue = ''
+  //  重置筛选框
+  filterRef.value.reset()
 }
 
 // 处理搜索查询
@@ -186,48 +162,67 @@ const handleFilter = (checkListFilter) => {
     // 无选择 - 显示当前分类的所有素材
     default:
       console.log('显示当前分类素材')
-      materialRef.value.materialDataGet('模型', currentCateId.value)
       break
   }
 }
 
 // 重置筛选
 const handleReset = async () => {
-  await materialRef.value.allMaterialListGet()
+  console.log('reset')
 }
 
-onMounted(() => {
-  cateGetAll()
+onMounted(async () => {
+  await Promise.all([
+    // 获取一级分类
+    cateStore.cateFirstGet('模型'),
+    // 根据页面类型或者分类显示素材
+    materialStore.selectedMaterialGet(
+      '模型',
+      currentMapsCateId.value,
+      materialStore.pages.pagesNum,
+      materialStore.pages.pagesSize
+    )
+  ])
 })
 </script>
 
 <template>
-  <div class="modelPage">
-    <el-affix position="top" :offset="50" target=".modelPage">
+  <div class="materialPage">
+    <el-affix position="top" :offset="50" target=".materialPage">
       <!--  分类  -->
       <div class="categoryPage">
         <!--   一级分类     -->
-        <Category ref="topCategoryRef" sub-title="new" :data-list="topCate" @changeCate="handleTopCate"></Category>
+        <Category ref="topCategoryRef" title="" :data-list="cateStore.cateFirstList" @changeCate="handleTopCate">
+        </Category>
         <!--   二级分类     -->
-        <SubCategory ref="subCateRef" v-if="currentCateId" :subCategoryData="currentSubCate"
-          @changeSubCate="handleSubCate"></SubCategory>
+        <SubCategory
+          ref="subCateRef"
+          v-if="currentSubCate.length > 0"
+          :subCategoryData="currentSubCate"
+          @changeSubCate="handleSubCate"
+        ></SubCategory>
         <!--    标签    -->
         <MaterialTags ref="tagsRef" @changeTags="handleChangeTags"></MaterialTags>
         <!--   颜色     -->
         <ColorTags ref="colorsTagRef" @changeColor="handleChangeColorsTag"></ColorTags>
       </div>
       <!--  筛选  -->
-      <Filter ref="filterRef" @search="handleSearch" @clearSearch="handelClearSearch" @filter="handleFilter"
-        @reset="handleReset"></Filter>
+      <Filter
+        ref="filterRef"
+        @search="handleSearch"
+        @clearSearch="handelClearSearch"
+        @filter="handleFilter"
+        @reset="handleReset"
+      ></Filter>
     </el-affix>
 
     <!--  素材  -->
-    <SourceMaterial ref="materialRef" type="模型" :currentCateId="currentCateId"></SourceMaterial>
+    <SourceMaterial ref="materialRef"></SourceMaterial>
   </div>
 </template>
 
 <style lang="scss" scoped>
-.modelPage {
+.materialPage {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 110px);
@@ -235,7 +230,6 @@ onMounted(() => {
   position: relative;
 
   .el-affix {
-
     /*分类组件*/
     .categoryPage {
       padding: 16px;

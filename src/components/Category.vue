@@ -9,7 +9,7 @@ const props = defineProps({
   subTitle: String,
   dataList: {
     type: Array,
-    default: () => {}
+    default: () => []
   }
 })
 
@@ -17,7 +17,7 @@ const props = defineProps({
 const emits = defineEmits(['changeCate', 'allCate'])
 
 // 激活分类下标
-const cateActiveIndex = ref(null)
+const cateActiveIndex = ref(0)
 // 点击分类
 const handleChangeCate = (item, index) => {
   console.log(item)
@@ -50,13 +50,6 @@ defineExpose({
 <template>
   <div class="cate">
     <div class="title">{{ title }}</div>
-    <div
-      @click="handleAll"
-      :class="{ cateActive: isAll }"
-      class="subtitle cateBox"
-    >
-      {{ subTitle }}
-    </div>
     <div
       class="cateItem cateBox"
       :class="{ cateActive: cateActiveIndex === index }"

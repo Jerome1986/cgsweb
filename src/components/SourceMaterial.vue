@@ -1,6 +1,6 @@
 <script setup>
-import { onMounted, ref, watch, computed, onUnmounted, nextTick } from 'vue'
-import { materialAllGet, searchMaterial } from '@/api/material'
+import { onMounted, ref, watch, computed, onUnmounted } from 'vue'
+import { bothFilterMaterialApi, filterMaterialApi, searchMaterial } from '@/api/material'
 import { useMaterialStore } from '@/stores/modules/material'
 import { usePathStore, useUserStore } from '@/stores'
 import { ElMessage } from 'element-plus'
@@ -14,16 +14,7 @@ import {
   usersGet
 } from '@/api/users'
 import { useRoute, useRouter } from 'vue-router'
-import fs from 'fs'
 import path from 'path'
-
-const props = defineProps({
-  type: String,
-  currentCateId: {
-    type: String,
-    default: ''
-  }
-})
 
 // 获取当前路由对象
 const route = useRoute()
@@ -34,15 +25,6 @@ const userStore = useUserStore()
 
 // 素材状态管理
 const materialStore = useMaterialStore()
-
-/**
- * 当前素材信息
- * @type {import('vue').Ref<materialModel[]>}
- */
-const materialData = ref([])
-
-// 当前封面图
-const currentCoverImg = ref([])
 
 // 下载状态管理
 const pathStore = usePathStore()
@@ -65,143 +47,14 @@ const maxSize = 600 // 最大尺寸
 // 拖拽状态
 const isDragging = ref(false)
 
-// 获取所有素材
-const allMaterialListGet = async () => {
-  // 获取所有数据，不使用分页
-  const res = await materialAllGet(1, 999999, props.type)
-  allMaterial.value = res.data.list
-  materialData.value = res.data.list
-  // 存储返回的总条数
-  materialStore.setMaterialTotal(res.data.total)
-}
-
-// 获取当前素材数据
-const materialDataGet = async () => {
-  await allMaterialListGet()
-  let filteredData = allMaterial.value
-
-  // 根据当前分类过滤数据
-  if (props.currentCateId) {
-    // 如果是一级分类，需要包含其下所有二级分类的数据
-    filteredData = allMaterial.value.filter(
-      (item) => item.top_id === props.currentCateId || item.sub_id === props.currentCateId
-    )
-  }
-
-  // 更新总数，用于分页计算
-  materialStore.setMaterialTotal(filteredData.length)
-
-  // 保存完整的过滤数据用于标签和颜色筛选
-  materialStore.setSelectedMaterials(filteredData)
-
-  // 计算当前页的数据
-  const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
-  const end = start + materialStore.pages.pagesSize
-  materialData.value = filteredData.slice(start, end)
-
-  // 封面图预览列表
-  currentCoverImg.value = materialData.value.map((item) => item.cover_url)
-
-  // 标签筛选和颜色筛选
-  updateTagsAndColors()
-  applyFilters()
-}
-
-// 更新标签和颜色列表
-const updateTagsAndColors = () => {
-  const materials = materialStore.selectedMaterials
-
-  if (materials.length > 0) {
-    // 更新标签
-    let tempTags = materials.flatMap((item) => item.tags)
-    let currentTags = [...new Set(tempTags)]
-    currentTags.unshift('全部')
-    materialStore.setCurrentTags(currentTags)
-
-    // 更新颜色
-    let tempColorTags = materials.flatMap((item) => item.colors)
-    let currentColorTags = [...new Set(tempColorTags)]
-    materialStore.setColorTags(currentColorTags)
-  } else {
-    materialStore.setCurrentTags([])
-    materialStore.setColorTags([])
-  }
-}
-
-// 应用联合筛选
-const applyFilters = () => {
-  let filtered = [...materialStore.selectedMaterials]
-
-  // 标签筛选
-  if (selectedTag.value && selectedTag.value !== '全部') {
-    filtered = filtered.filter((item) => item.tags.includes(selectedTag.value))
-  }
-
-  // 颜色筛选
-  if (selectedColor.value) {
-    filtered = filtered.filter((item) => item.colors.includes(selectedColor.value))
-  }
-
-  // 更新总数，用于分页计算
-  materialStore.setMaterialTotal(filtered.length)
-
-  // 计算当前页的数据
-  const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
-  const end = start + materialStore.pages.pagesSize
-  materialData.value = filtered.slice(start, end)
-
-  // 更新预览图列表
-  currentCoverImg.value = materialData.value.map((item) => item.cover_url)
-}
-
 // 标签筛选
-const handleTagSelect = (tag) => {
-  selectedTag.value = tag
-  applyFilters()
-}
+const handleTagSelect = (tag) => {}
 
 // 颜色筛选
-const handleColorSelect = (color) => {
-  if (selectedColor.value === color) {
-    selectedColor.value = null // 取消选中
-  } else {
-    selectedColor.value = color // 选中新颜色
-  }
-  applyFilters()
-}
+const handleColorSelect = (color) => {}
 
 // 通过搜索查询素材
-const handleSearch = async (searchValue) => {
-  if (!searchValue) {
-    await materialDataGet()
-  } else {
-    const res = await searchMaterial(
-      searchValue,
-      materialStore.pages.pagesNum,
-      materialStore.pages.pagesSize,
-      props.type
-    )
-    let searchResults = res.data
-
-    // 如果有分类选择，过滤搜索结果
-    if (props.currentCateId) {
-      searchResults = searchResults.filter(
-        (item) => item.top_id === props.currentCateId || item.sub_id === props.currentCateId
-      )
-    }
-
-    // 更新总数，用于分页计算
-    materialStore.setMaterialTotal(searchResults.length)
-
-    // 计算当前页的数据
-    const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
-    const end = start + materialStore.pages.pagesSize
-    materialData.value = searchResults.slice(start, end)
-
-    // 更新预览图列表
-    currentCoverImg.value = materialData.value.map((item) => item.cover_url)
-  }
-}
+const handleSearch = async (searchValue) => {}
 
 // 处理下载成功后扣除用户金币
 const handleUserCoinsOrTimes = async (material_id) => {
@@ -399,10 +252,12 @@ const handleDownload = async (item) => {
  * @type {import('vue').Ref<downloadListModel[]>}
  */
 const userDownLoadList = ref([])
+let downIds = []
 const downLoadListGet = async () => {
   if (!userStore.userInfo._id) return
   const res = await userDownLoadListGet(userStore.userInfo._id)
   userDownLoadList.value = res.data
+  downIds = userDownLoadList.value.map((item) => item.material_id)
 }
 
 // 检查素材是否已下载
@@ -413,35 +268,20 @@ const isDownloaded = computed(() => {
 })
 
 // 本机有
-const localMaterials = async () => {
-  // 先获取当前类型的所有素材
-  const res = await materialAllGet(1, 999999, props.type)
-  allMaterial.value = res.data.list
-
-  // 过滤出已下载的素材
-  const downloadIds = new Set(pathStore.localDownloadPath.map((item) => item.material_id))
-  let filteredMaterials = allMaterial.value.filter((material) => downloadIds.has(material._id))
-
-  // 如果有选中的分类，根据分类进行过滤
-  if (props.currentCateId) {
-    filteredMaterials = filteredMaterials.filter(
-      (item) => item.top_id === props.currentCateId || item.sub_id === props.currentCateId
-    )
-  }
-
-  // 更新总数，用于分页计算
-  materialStore.setMaterialTotal(filteredMaterials.length)
-
-  // 保存完整的过滤数据用于标签和颜色筛选
-  materialStore.setSelectedMaterials(filteredMaterials)
-
-  // 计算当前页的数据
-  const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
-  const end = start + materialStore.pages.pagesSize
-  materialData.value = filteredMaterials.slice(start, end)
-
-  // 更新预览图列表
-  currentCoverImg.value = materialData.value.map((item) => item.cover_url)
+const localMaterials = async (pagesType, cateId, tag, color) => {
+  const res = await bothFilterMaterialApi(
+    '',
+    downIds,
+    pagesType,
+    cateId,
+    tag,
+    color,
+    materialStore.pages.pagesNum,
+    materialStore.pages.pagesSize
+  )
+  console.log('下载', res)
+  materialStore.setSelectedMaterials(res.data.list)
+  materialStore.setMaterialTotal(res.data.total)
 }
 
 // 将素材添加到收藏列表
@@ -457,49 +297,36 @@ const addMaterialLoveList = async (material_id) => {
  * @type {import('vue').Ref<loveListModel[]>}
  */
 const userLoveList = ref([])
+let loveIds = []
 // 获取用户收藏列表
 const getUsersLoveList = async () => {
-  if (!userStore.userInfo._id) return ElMessage.warning('当前用户未登录')
   const res = await userLoveListGet(userStore.userInfo._id)
-  console.log(res)
+  console.log('收藏列表', res)
   userLoveList.value = res.data
+  loveIds = userLoveList.value.map((item) => item.material_id)
+  console.log(loveIds)
 }
 
 // 标记是否收藏
 const isLove = computed(() => (material_id) => {
-  return userLoveList.value.some((item) => item.material_id === material_id)
+  return userLoveList.value.find((item) => item.material_id === material_id)
 })
 
-// 已收藏
-const loveMaterials = async () => {
-  // 先获取当前类型的所有素材
-  const res = await materialAllGet(1, 999999, props.type)
-  allMaterial.value = res.data.list
-
-  // 过滤出已收藏的素材
-  const loveIds = new Set(userLoveList.value.map((item) => item.material_id))
-  let filteredMaterials = allMaterial.value.filter((material) => loveIds.has(material._id))
-
-  // 如果有选中的分类，根据分类进行过滤
-  if (props.currentCateId) {
-    filteredMaterials = filteredMaterials.filter(
-      (item) => item.top_id === props.currentCateId || item.sub_id === props.currentCateId
-    )
-  }
-
-  // 更新总数，用于分页计算
-  materialStore.setMaterialTotal(filteredMaterials.length)
-
-  // 保存完整的过滤数据用于标签和颜色筛选
-  materialStore.setSelectedMaterials(filteredMaterials)
-
-  // 计算当前页的数据
-  const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
-  const end = start + materialStore.pages.pagesSize
-  materialData.value = filteredMaterials.slice(start, end)
-
-  // 更新预览图列表
-  currentCoverImg.value = materialData.value.map((item) => item.cover_url)
+// 已收藏（带分页）
+const loveMaterials = async (pagesType, cateId, tag, color) => {
+  const res = await bothFilterMaterialApi(
+    loveIds,
+    '',
+    pagesType,
+    cateId,
+    tag,
+    color,
+    materialStore.pages.pagesNum,
+    materialStore.pages.pagesSize
+  )
+  console.log('收藏', res)
+  materialStore.setSelectedMaterials(res.data.list)
+  materialStore.setMaterialTotal(res.data.total)
 }
 
 /**
@@ -507,32 +334,21 @@ const loveMaterials = async () => {
  * @type {import('vue').Ref<loveListModel[]>}
  */
 const localLove = ref([])
-// 本机有和已收藏叠加筛选
-const localLoveListGet = () => {
-  localLove.value = [...userLoveList.value, ...userDownLoadList.value]
-  const localLoveIds = new Set(localLove.value.map((item) => item.material_id))
-  let filteredMaterials = allMaterial.value.filter((material) => localLoveIds.has(material._id))
-
-  // 如果有选中的分类，根据分类进行过滤
-  if (props.currentCateId) {
-    filteredMaterials = filteredMaterials.filter(
-      (item) => item.top_id === props.currentCateId || item.sub_id === props.currentCateId
-    )
-  }
-
-  // 更新总数，用于分页计算
-  materialStore.setMaterialTotal(filteredMaterials.length)
-
-  // 保存完整的过滤数据用于标签和颜色筛选
-  materialStore.setSelectedMaterials(filteredMaterials)
-
-  // 计算当前页的数据
-  const start = (materialStore.pages.pagesNum - 1) * materialStore.pages.pagesSize
-  const end = start + materialStore.pages.pagesSize
-  materialData.value = filteredMaterials.slice(start, end)
-
-  // 更新预览图列表
-  currentCoverImg.value = materialData.value.map((item) => item.cover_url)
+// 下载 & 收藏 两者都有
+const bothLocalAndLoved = async (pagesType, cateId, tag, color) => {
+  const res = await bothFilterMaterialApi(
+    loveIds,
+    downIds,
+    pagesType,
+    cateId,
+    tag,
+    color,
+    materialStore.pages.pagesNum,
+    materialStore.pages.pagesSize
+  )
+  console.log('联合', res)
+  materialStore.setSelectedMaterials(res.data.list)
+  materialStore.setMaterialTotal(res.data.total)
 }
 
 // 根据当前选择素材打开本地下载路径
@@ -658,39 +474,6 @@ const handleFunction = (value, materialValue) => {
   }
 }
 
-// 监听分页参数变化
-watch(
-  () => [materialStore.pages.pagesNum, materialStore.pages.pagesSize],
-  ([newPageNum, newPageSize], [oldPageNum, oldPageSize]) => {
-    // 当页码或每页条数变化时重新加载数据
-    // 变化时重置为第一页（如果只是条数变化）
-    if (newPageSize !== oldPageSize) {
-      materialStore.setPages({
-        pagesNum: 1, // 条数变化时重置到第一页
-        pagesSize: newPageSize
-      })
-    }
-    materialDataGet()
-  },
-  { deep: true }
-)
-
-// 监听分类ID变化
-watch(
-  () => props.currentCateId,
-  (newVal) => {
-    // 切换分类时重置页码为1
-    materialStore.setPages({
-      ...materialStore.pages,
-      pagesNum: 1
-    })
-    materialDataGet()
-    // 重置筛选状态
-    selectedTag.value = '全部'
-    selectedColor.value = null
-  }
-)
-
 // 监视 isDragging 状态变化
 watch(isDragging, (newValue) => {
   console.log('拖拽状态变化:', newValue)
@@ -720,18 +503,15 @@ const handleStartFileDrag = (scriptPath, fileType) => {
 }
 
 defineExpose({
-  materialDataGet,
   tagsGetMaterials: handleTagSelect,
   colorGetMaterials: handleColorSelect,
   searchMaterial: handleSearch,
   localMaterials,
   loveMaterials,
-  localLoveListGet,
-  allMaterialListGet
+  bothLocalAndLoved
 })
 
 onMounted(() => {
-  materialDataGet()
   downLoadListGet()
   getUsersLoveList()
 
@@ -761,26 +541,45 @@ onUnmounted(() => {
 
 <template>
   <div class="sourceMaterial">
-    <div class="materialItem" v-for="(item, index) in materialData" :key="item._id"
-      :class="{ 'can-drag': isDownloaded(item._id) }" draggable="true"
+    <div
+      class="materialItem"
+      v-for="(item, index) in materialStore.selectedMaterials"
+      :key="item._id"
+      :class="{ 'can-drag': isDownloaded(item._id) }"
+      draggable="true"
       @dragstart="isDownloaded(item._id) ? handleDragStart($event, item) : $event.preventDefault()"
-      @dragend="handleDragEnd($event)" :style="{ width: `${itemSize}px`, height: `${itemSize}px` }">
+      @dragend="handleDragEnd($event)"
+      :style="{ width: `${itemSize}px`, height: `${itemSize}px` }"
+    >
       <!-- 使用 el-image 替换背景图 -->
-      <el-image class="material-image" :src="item.cover_url" :zoom-rate="1.2" :max-scale="7" :min-scale="0.2"
-        show-progress :preview-teleported="true" :preview-src-list="currentCoverImg" fit="cover" hide-on-click-modal
-        :initial-index="index" />
+      <el-image
+        class="material-image"
+        :src="item.cover_url"
+        :zoom-rate="1.2"
+        :max-scale="7"
+        :min-scale="0.2"
+        show-progress
+        :preview-teleported="true"
+        :preview-src-list="materialStore.currentCoverImg"
+        fit="cover"
+        hide-on-click-modal
+        :initial-index="index"
+      />
       <!--   下载    -->
       <div class="download" :class="{ downloadActive: !isDownloaded(item._id) }" style="color: #427b02" @click.stop>
         <i class="iconfont icon-xiazaichenggong" style="font-size: 20px" v-if="isDownloaded(item._id)"></i>
-        <i class="iconfont icon-xiazai_xiazai hover-visible" style="font-size: 17px; color: #ffffff; cursor: pointer"
-          @click="handleDownload(item)"></i>
+        <i
+          class="iconfont icon-xiazai_xiazai hover-visible"
+          style="font-size: 17px; color: #ffffff; cursor: pointer"
+          @click="handleDownload(item)"
+        ></i>
       </div>
       <!--   素材信息和功能区   -->
       <div class="InfoFunction" @click.stop>
         <!--   路径信息    -->
         <div class="routeText hover-visible">{{ item.cate_path }}</div>
         <!--   素材名字    -->
-        <div class="name" v-if="materialStore.isShowTextName">
+        <div class="name" v-show="materialStore.isShowTextName">
           {{ item.name }}
         </div>
         <!--   功能图标    -->
@@ -788,13 +587,20 @@ onUnmounted(() => {
           <!--  以图搜图   -->
           <i class="iconfont icon-fangdajing1 hover-visible" @click="handleFunction('searchPic', item._id)"></i>
           <!--  平铺贴图   -->
-          <i v-if="route.path === '/maps'" class="iconfont icon-quanping hover-visible"
-            @click="handleFunction('full', item.cover_url)"></i>
+          <i
+            v-if="route.path === '/maps'"
+            class="iconfont icon-quanping hover-visible"
+            @click="handleFunction('full', item.cover_url)"
+          ></i>
           <!--  打开本地文件   -->
           <i class="iconfont icon-wj-wjj hover-visible" @click="handleFunction('openFile', item._id)"></i>
           <!--  收藏  -->
-          <i v-if="isLove(item._id)" class="iconfont icon-aixin1" style="color: #fb4409"
-            @click="handleFunction('love', item._id)"></i>
+          <i
+            v-if="isLove(item._id)"
+            class="iconfont icon-aixin1"
+            style="color: #fb4409"
+            @click="handleFunction('love', item._id)"
+          ></i>
           <!--  未收藏  -->
           <i v-else class="iconfont icon-aixin hover-visible" @click="handleFunction('love', item._id)"></i>
         </div>
@@ -839,6 +645,11 @@ onUnmounted(() => {
       height: 100%;
       z-index: 0;
       cursor: pointer;
+    }
+
+    ::v-deep(.el-image__error),
+    ::v-deep(.el-image__placeholder) {
+      background-color: #202020;
     }
 
     // 默认隐藏需要悬停才显示的元素

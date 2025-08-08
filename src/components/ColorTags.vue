@@ -14,11 +14,12 @@ const handleColor = (color, index) => {
   if (colorActiveIndex.value === index) {
     // 点击已选中的标签，取消高亮
     colorActiveIndex.value = null
+    emits('changeColor', '')
   } else {
     // 点击新标签，高亮新标签
     colorActiveIndex.value = index
+    emits('changeColor', color)
   }
-  emits('changeColor', color)
 }
 
 // 将激活下标表露给父组件

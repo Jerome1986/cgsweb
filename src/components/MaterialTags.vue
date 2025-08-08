@@ -12,10 +12,17 @@ const emits = defineEmits(['changeTags'])
 
 // 处理标签点击
 const changeTags = (item, index) => {
-  console.log('标签', item)
-  tagsActiveIndex.value = index
-  // 转交给父组件处理
-  emits('changeTags', item)
+  // 如果点击的是当前已选中的标签，则取消选中
+  if (tagsActiveIndex.value === index) {
+    tagsActiveIndex.value = null
+    // 传递"全部"给父组件，表示取消筛选
+    emits('changeTags', '')
+  } else {
+    // 否则选中新标签
+    tagsActiveIndex.value = index
+    // 传递选中的标签给父组件
+    emits('changeTags', item)
+  }
 }
 
 defineExpose({

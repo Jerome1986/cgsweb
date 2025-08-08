@@ -8,7 +8,8 @@ import ColorTags from '@/components/ColorTags.vue'
 
 import { ref, onMounted } from 'vue'
 import { useMaterialStore } from '@/stores'
-import { cateDataGetAll } from '@/api/cate'
+import { useCateStore } from '@/stores/modules/cate'
+import { filterMaterialApi, searchMaterial } from '@/api/material'
 
 // 一级分类组件
 const topCategoryRef = ref(null)
@@ -18,48 +19,43 @@ const subCateRef = ref(null)
 const materialRef = ref(null)
 // 标签组件
 const tagsRef = ref(null)
+// 颜色组件
+const colorsTagRef = ref(null)
 // 筛选组件
 const filterRef = ref(null)
 // 素材状态管理
 const materialStore = useMaterialStore()
+const cateStore = useCateStore()
 
-/**
- * 一级分类
- * @type {import('vue').Ref<topCateModel[]>}
- */
-const topCate = ref([])
-
-/**
- * 二级分类
- * @type {import('vue').Ref<subCateModel[]>}
- */
-const subCate = ref([])
-
-// 一次性获取所有分类
-const cateGetAll = async () => {
-  const res = await cateDataGetAll()
-  console.log(res.data.list)
-  // 一级分类
-  topCate.value = res.data.list.filter((item) => item.type === '材质')
-
-  // 二级分类
-  subCate.value = topCate.value.flatMap((item) => item.subCategories || [])
-}
 // 当前选择的分类id
-const currentMapsCateId = ref('')
-
+const currentMapsCateId = ref('NEW')
+const topCateId = ref('')
 // 处理一级分类的点击事件
 const currentSubCate = ref([])
-const topCateId = ref('')
-const handleTopCate = (id) => {
+const handleTopCate = async (id) => {
   console.log('一级分类id', id)
   topCateId.value = id
-  currentMapsCateId.value = topCateId.value
-  // 根据当前一级分类id筛选二级分类
-  currentSubCate.value = subCate.value.filter((item) => item.parent_id === id)
-  currentSubCate.value.unshift({ _id: 'ALL', en_name: 'all', name: '全部' })
-  // 获取一级分类素材
-  materialRef.value.materialDataGet('材质', currentMapsCateId.value)
+  currentMapsCateId.value = id
+  await cateStore.cateSubGet(id)
+
+  currentSubCate.value = cateStore.cateSubList
+  // 如果二级分类存在追加一个全部
+  if (currentSubCate.value?.length > 0) {
+    currentSubCate.value.unshift({ _id: 'ALL', en_name: 'all', name: '全部' })
+  }
+
+  // 切换分类时先将页码重新设置为第一页
+  materialStore.setPages({ pagesNum: 1 })
+  // 点击一级分类对应的素材
+  await materialStore.selectedMaterialGet(
+    '材质',
+    currentMapsCateId.value,
+    materialStore.pages.pagesNum,
+    materialStore.pages.pagesSize
+  )
+
+  console.log('隐藏信息', materialStore.isShowTextName)
+
   // 重置二级分类的高亮状态
   if (subCateRef.value) {
     subCateRef.value.subActiveIndex = null
@@ -73,7 +69,7 @@ const handleTopCate = (id) => {
 }
 
 // 处理二级分类点击事件
-const handleSubCate = (subCate) => {
+const handleSubCate = async (subCate) => {
   // 如果为全部则根据一级分类id来渲染素材--否则根据二级分类id来渲染素材
   if (subCate._id === 'ALL') {
     currentMapsCateId.value = topCateId.value
@@ -81,8 +77,15 @@ const handleSubCate = (subCate) => {
     currentMapsCateId.value = subCate._id
   }
 
+  // 切换分类时先将页码重新设置为第一页
+  materialStore.setPages({ pagesNum: 1 })
   // 利用素材组件暴露的方法来渲染
-  materialRef.value.materialDataGet('材质', currentMapsCateId.value)
+  await materialStore.selectedMaterialGet(
+    '材质',
+    currentMapsCateId.value,
+    materialStore.pages.pagesNum,
+    materialStore.pages.pagesSize
+  )
 
   // 重置标签高亮
   tagsRef.value.tagsActiveIndex = null
@@ -95,105 +98,217 @@ const handleSubCate = (subCate) => {
 }
 
 // 处理标签组件的点击事件
-const handleChangeTags = (tag) => {
+const selectedTag = ref('')
+const handleChangeTags = async (tag) => {
   console.log('当前标签', tag)
-  materialRef.value.tagsGetMaterials(tag)
   //  重置筛选框
   filterRef.value.reset()
+  // 切换时先将页码重新设置为第一页
+  materialStore.setPages({ pagesNum: 1 })
+  selectedTag.value = tag
+  await fetchFilteredMaterials(materialStore.pages.pagesNum, materialStore.pages.pagesSize)
 }
 
 // 处理颜色标签
-const colorsTagRef = ref(null)
-const handleChangeColorsTag = (color) => {
-  console.log('当前颜色下标', colorsTagRef.value.colorActiveIndex)
-  if (colorsTagRef.value) {
-    materialRef.value.colorGetMaterials(
-      color,
-      colorsTagRef.value.colorActiveIndex
-    )
-  }
+const selectedColor = ref('')
+const handleChangeColorsTag = async (color) => {
+  console.log('当前颜色下标', color)
   //  重置筛选框
   filterRef.value.reset()
+  // 切换时先将页码重新设置为第一页
+  materialStore.setPages({ pagesNum: 1 })
+  selectedColor.value = color
+  await fetchFilteredMaterials(materialStore.pages.pagesNum, materialStore.pages.pagesSize)
+}
+
+// 标签和颜色联合筛选
+const fetchFilteredMaterials = async (pagesNum, pagesSize) => {
+  console.log('当前分类', currentMapsCateId.value)
+  if (currentMapsCateId.value === 'NEW') {
+    // 当前页面类型下的所有素材
+    const res = await filterMaterialApi('材质', '', selectedTag.value, selectedColor.value, pagesNum, pagesSize)
+    materialStore.setSelectedMaterials(res.data.list)
+    materialStore.setMaterialTotal(res.data.total)
+  } else {
+    const res = await filterMaterialApi(
+      '材质',
+      currentMapsCateId.value,
+      selectedTag.value,
+      selectedColor.value,
+      pagesNum,
+      pagesSize
+    )
+    materialStore.setSelectedMaterials(res.data.list)
+    materialStore.setMaterialTotal(res.data.total)
+  }
+}
+
+// 搜索函数
+const searchFunction = async (value) => {
+  // 切换时先将页码重新设置为第一页
+  materialStore.setPages({ pagesNum: 1 })
+  // 请求搜索后的数据
+  const res = await searchMaterial(
+    currentMapsCateId.value,
+    '材质',
+    selectedTag.value,
+    selectedColor.value,
+    value,
+    materialStore.pages.pagesNum,
+    materialStore.pages.pagesSize
+  )
+  materialStore.setSelectedMaterials(res.data)
+  materialStore.setMaterialTotal(res.total)
+
+  // 重置筛选框，但保留显示信息的状态
+  const isShowText = materialStore.isShowTextName
+  filterRef.value.reset()
+  materialStore.setShowTextName(isShowText)
 }
 
 // 处理搜索查询
-const handleSearch = (value) => {
-  console.log('搜索', value)
-
-  // 查询获取素材
-  materialRef.value.searchMaterial(value)
-
-  // 只重置标签相关的高亮
-  tagsRef.value.tagsActiveIndex = null
-  colorsTagRef.value.colorActiveIndex = null
+const searchValue = ref('')
+const handleSearch = async (value) => {
+  searchValue.value = value
+  await searchFunction(value)
 }
 
 // 清空搜索
-const handelClearSearch = () => {
-  materialRef.value.searchMaterial('')
-}
-
-// 重置分类和标签和搜索框函数
-const resetCateTag = () => {
-  // 重置一级分类高亮
-  topCategoryRef.value.cateActiveIndex = null
-  // 重置二级分类高亮
-  if (subCateRef.value) {
-    subCateRef.value.subActiveIndex = null
-    currentSubCate.value = []
+const handelClearSearch = async () => {
+  console.log('清空搜索')
+  searchValue.value = ''
+  // 切换时先将页码重新设置为第一页
+  materialStore.setPages({ pagesNum: 1 })
+  if (!searchValue.value) {
+    await fetchFilteredMaterials(materialStore.pages.pagesNum, materialStore.pages.pagesSize)
   }
-  // 重置标签高亮
-  tagsRef.value.tagsActiveIndex = null
-  // 重置颜色标签高亮
-  colorsTagRef.value.colorActiveIndex = null
-  // 重置搜索框
-  filterRef.value.clearSearch()
 }
 
 // 处理其他筛选
-const handleFilter = (checkListFilter) => {
+let hasCollect
+let hasDownload
+let lastHasShowText = false
+let lastFilterConditions = {}
+
+const handleFilter = async (checkListFilter) => {
   const hasDownload = checkListFilter.includes('download')
   const hasCollect = checkListFilter.includes('collect')
   const hasShowText = checkListFilter.includes('showText')
-  // 单独控制文本显示
-  if (hasShowText) {
-    materialStore.setShowTextName(false)
-  } else {
-    materialStore.setShowTextName(true)
+
+  // 筛选条件
+  const filterConditions = { hasDownload, hasCollect, tag: selectedTag.value, color: selectedColor.value }
+  const isFilterChanged = JSON.stringify(filterConditions) !== JSON.stringify(lastFilterConditions)
+  lastFilterConditions = filterConditions
+
+  // 如果只是切文字
+  if (!isFilterChanged) {
+    materialStore.setShowTextName(hasShowText)
+    return
   }
 
-  // 根据勾选状态筛选 -- 控制下载和收藏
+  // 重置页码
+  materialStore.setPages({ pagesNum: 1 })
+  filterRef.value.clearSearch()
+  searchValue.value = ''
+
+  // 一次性执行（等数据回来再切文字）
+  await doFilterData(filterConditions)
+  materialStore.setShowTextName(hasShowText)
+}
+
+// 筛选函数
+async function doFilterData({ hasDownload, hasCollect, tag, color }) {
   switch (true) {
     case hasDownload && hasCollect:
-      console.log('下载、收藏')
-      materialRef.value.localLoveListGet()
-      resetCateTag()
+      await materialRef.value.bothLocalAndLoved('材质', currentMapsCateId.value, tag, color)
       break
     case hasDownload:
-      console.log('下载')
-      materialRef.value.localMaterials()
-      // 不再重置分类
+      await materialRef.value.localMaterials('材质', currentMapsCateId.value, tag, color)
       break
     case hasCollect:
-      console.log('收藏')
-      materialRef.value.loveMaterials()
-      // 不再重置分类
+      await materialRef.value.loveMaterials('材质', currentMapsCateId.value, tag, color)
       break
-    // 无选择 - 显示当前分类的所有素材
     default:
-      console.log('显示当前分类素材')
-      materialRef.value.materialDataGet('材质', currentMapsCateId.value)
-      break
+      if (tag || color) {
+        await fetchFilteredMaterials(materialStore.pages.pagesNum, materialStore.pages.pagesSize)
+      } else {
+        await materialStore.selectedMaterialGet(
+          '材质',
+          currentMapsCateId.value,
+          materialStore.pages.pagesNum,
+          materialStore.pages.pagesSize
+        )
+      }
   }
 }
 
 // 重置筛选
 const handleReset = async () => {
-  await materialRef.value.allMaterialListGet()
+  console.log('reset')
+  if (selectedTag.value || selectedColor.value) {
+    await fetchFilteredMaterials(materialStore.pages.pagesNum, materialStore.pages.pagesSize)
+  } else {
+    await materialStore.selectedMaterialGet(
+      '材质',
+      currentMapsCateId.value,
+      materialStore.pages.pagesNum,
+      materialStore.pages.pagesSize
+    )
+  }
 }
 
-onMounted(() => {
-  cateGetAll()
+// 处理分页
+const handleNum = async (num) => {
+  console.log(searchValue.value, selectedTag.value, selectedColor.value, currentMapsCateId.value)
+  if (searchValue.value) {
+    // 搜索模式
+    await searchFunction(searchValue.value)
+  } else if (selectedTag.value || selectedColor.value) {
+    //  只要有一个存在说明是筛选模式
+    await fetchFilteredMaterials(num, materialStore.pages.pagesSize)
+  } else if (hasCollect) {
+    await materialRef.value.loveMaterials('材质', currentMapsCateId.value, selectedTag.value, selectedColor.value)
+  } else if (hasDownload) {
+    await materialRef.value.localMaterials('材质', currentMapsCateId.value, selectedTag.value, selectedColor.value)
+  } else if (hasCollect || hasDownload) {
+    await materialRef.value.bothLocalAndLoved('材质', currentMapsCateId.value, selectedTag.value, selectedColor.value)
+  } else if (currentMapsCateId.value) {
+    console.log('分类分页')
+    await materialStore.selectedMaterialGet('材质', currentMapsCateId.value, num, materialStore.pages.pagesSize)
+  }
+}
+
+const handleSize = async (size) => {
+  if (searchValue.value) {
+    // 搜索模式
+    await searchFunction(searchValue.value)
+  } else if (selectedTag.value || selectedColor.value) {
+    //  只要有一个存在说明是筛选模式
+    await fetchFilteredMaterials(materialStore.pages.pagesNum, size)
+  } else if (hasCollect) {
+    await materialRef.value.loveMaterials('材质', currentMapsCateId.value, selectedTag.value, selectedColor.value)
+  } else if (hasDownload) {
+    await materialRef.value.localMaterials('材质', currentMapsCateId.value, selectedTag.value, selectedColor.value)
+  } else if (hasCollect || hasDownload) {
+    await materialRef.value.bothLocalAndLoved('材质', currentMapsCateId.value, selectedTag.value, selectedColor.value)
+  } else if (currentMapsCateId.value) {
+    console.log('分类分页')
+    await materialStore.selectedMaterialGet('材质', currentMapsCateId.value, materialStore.pages.pagesNum, size)
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([
+    // 获取一级分类
+    cateStore.cateFirstGet('材质'),
+    // 根据页面类型或者分类显示素材
+    materialStore.selectedMaterialGet(
+      '材质',
+      currentMapsCateId.value,
+      materialStore.pages.pagesNum,
+      materialStore.pages.pagesSize
+    )
+  ])
 })
 </script>
 
@@ -203,23 +318,34 @@ onMounted(() => {
       <!--  分类  -->
       <div class="categoryPage">
         <!--   一级分类     -->
-        <Category ref="topCategoryRef" title="" sub-title="new" :data-list="topCate" @changeCate="handleTopCate">
+        <Category ref="topCategoryRef" title="" :data-list="cateStore.cateFirstList" @changeCate="handleTopCate">
         </Category>
         <!--   二级分类     -->
-        <SubCategory ref="subCateRef" v-if="currentSubCate.length > 0" :subCategoryData="currentSubCate"
-          @changeSubCate="handleSubCate"></SubCategory>
+        <SubCategory
+          ref="subCateRef"
+          v-if="currentSubCate?.length > 0"
+          :subCategoryData="currentSubCate"
+          @changeSubCate="handleSubCate"
+        ></SubCategory>
         <!--    标签    -->
         <MaterialTags ref="tagsRef" @changeTags="handleChangeTags"></MaterialTags>
         <!--   颜色     -->
         <ColorTags ref="colorsTagRef" @changeColor="handleChangeColorsTag"></ColorTags>
       </div>
       <!--  筛选  -->
-      <Filter ref="filterRef" @search="handleSearch" @clearSearch="handelClearSearch" @filter="handleFilter"
-        @reset="handleReset"></Filter>
+      <Filter
+        ref="filterRef"
+        @search="handleSearch"
+        @clearSearch="handelClearSearch"
+        @filter="handleFilter"
+        @reset="handleReset"
+        @changeSize="handleSize"
+        @changeNum="handleNum"
+      ></Filter>
     </el-affix>
 
     <!--  素材  -->
-    <SourceMaterial ref="materialRef" type="材质" :currentCateId="currentMapsCateId"></SourceMaterial>
+    <SourceMaterial ref="materialRef"></SourceMaterial>
   </div>
 </template>
 
@@ -232,7 +358,6 @@ onMounted(() => {
   position: relative;
 
   .el-affix {
-
     /*分类组件*/
     .categoryPage {
       padding: 16px;

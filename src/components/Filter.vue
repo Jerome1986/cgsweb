@@ -10,6 +10,7 @@ const materialStore = useMaterialStore()
 // 处理筛选
 const checkListFilter = ref([])
 const changeFilter = (value) => {
+  console.log(value)
   emits('filter', value)
 }
 
@@ -17,32 +18,45 @@ const changeFilter = (value) => {
 const resetFilter = () => {
   searchValue.value = ''
   checkListFilter.value = []
-  materialStore.setShowTextName(true)
+  materialStore.setShowTextName(false)
+  materialStore.setPages({ pagesNum: 1, pagesSize: 10 })
   emits('reset')
 }
 
 // 重置筛选的方法
 const reset = () => {
-  searchValue.value = ''
-  checkListFilter.value = []
-  materialStore.setShowTextName(true)
+  // 保存当前显示信息的状态
+  const showTextEnabled = checkListFilter.value.includes('showText')
+
+  // 重置筛选项，但保留显示信息选项
+  checkListFilter.value = showTextEnabled ? ['showText'] : []
+
+  // 根据保存的状态设置显示信息
+  materialStore.setShowTextName(showTextEnabled)
+
+  console.log('重置', checkListFilter.value)
 }
 
 // 处理每页条数改变
 const handleSizeChange = (val) => {
   console.log('条数', val)
-  materialStore.setPages({ pagesSize: val })
+  emits('changeSize', val)
 }
 
 // 处理页码改变
 const handleCurrentChange = (val) => {
   console.log('页码', val)
-  materialStore.setPages({ pagesNum: val })
+  emits('changeNum', val)
 }
 
 // 处理查询
 const searchGetMaterial = async () => {
-  checkListFilter.value = []
+  // 保存显示信息的选项状态
+  const keepShowText = checkListFilter.value.includes('showText')
+
+  // 清空筛选，但保留显示信息选项
+  checkListFilter.value = keepShowText ? ['showText'] : []
+
   emits('search', searchValue.value)
 }
 
@@ -57,7 +71,7 @@ const handleClear = () => {
 }
 
 // 提交子组件事件
-const emits = defineEmits(['search', 'clearSearch', 'filter', 'reset'])
+const emits = defineEmits(['search', 'clearSearch', 'filter', 'reset', 'changeSize', 'changeNum'])
 
 // 暴露搜索组件的值和方法
 defineExpose({
@@ -70,15 +84,27 @@ defineExpose({
   <div class="filter">
     <!--  分页  -->
     <div class="example-pagination-block">
-      <el-pagination background v-model:current-page="materialStore.pages.pagesNum"
-        v-model:page-size="materialStore.pages.pagesSize" :page-sizes="[10, 20, 30, 50]"
-        layout="total, sizes, prev, pager, next" :total="materialStore.materialTotal" @size-change="handleSizeChange"
-        @current-change="handleCurrentChange" />
+      <el-pagination
+        background
+        v-model:current-page="materialStore.pages.pagesNum"
+        v-model:page-size="materialStore.pages.pagesSize"
+        :page-sizes="[10, 50, 80, 100]"
+        layout="total, sizes, prev, pager, next"
+        :total="materialStore.materialTotal"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+      />
     </div>
     <!-- 搜索 -->
     <div class="search">
-      <el-input class="custom-input" v-model="searchValue" placeholder="请输入关键词" :prefix-icon="Search" clearable
-        @clear="handleClear" />
+      <el-input
+        class="custom-input"
+        v-model="searchValue"
+        placeholder="请输入关键词"
+        :prefix-icon="Search"
+        clearable
+        @clear="handleClear"
+      />
       <div class="searchBtn" @click="searchGetMaterial">查询</div>
     </div>
     <!--   筛选区   -->
@@ -87,7 +113,7 @@ defineExpose({
         <!--        <el-checkbox label="全局搜索" value="allSearch" />-->
         <el-checkbox label="本机有" value="download" />
         <el-checkbox label="已收藏" value="collect" />
-        <el-checkbox label="隐藏信息" value="showText" />
+        <el-checkbox label="显示信息" value="showText" />
       </el-checkbox-group>
       <!-- 重置所有筛选 -->
       <div class="reset" @click="resetFilter">重置</div>
@@ -107,7 +133,6 @@ defineExpose({
   /*分页*/
   .example-pagination-block {
     :deep(.el-pagination.is-background) {
-
       .btn-prev,
       .btn-next,
       .el-pager li {
@@ -206,7 +231,6 @@ defineExpose({
       gap: 16px; // 复选框之间的间距
 
       .el-checkbox {
-
         /* 未选中状态的文字颜色 */
         .el-checkbox__label {
           color: #fff;
