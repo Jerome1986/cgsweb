@@ -2,6 +2,17 @@
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import { onMounted } from 'vue'
 import { usePathStore } from '@/stores'
+
+const pathStore = usePathStore()
+
+onMounted(() => {
+  // 从 localStorage 初始化下载路径
+  const savedPath = localStorage.getItem('downloadPath')
+  if (savedPath) {
+    pathStore.setDownloadPath(savedPath)
+    console.log('初始化下载路径:', savedPath)
+  }
+})
 </script>
 
 <template>
@@ -16,6 +27,7 @@ import { usePathStore } from '@/stores'
 /* 预览容器样式 */
 .el-image-viewer__wrapper {
   .el-image-viewer__img {
+    position: relative;
     max-width: 80%;
     max-height: 80vh;
     object-fit: contain !important;
@@ -24,6 +36,7 @@ import { usePathStore } from '@/stores'
     /* 覆盖可能的内联样式 */
     height: auto !important;
     /* 覆盖可能的内联样式 */
+
   }
 
   /* 确保预览容器不会强制拉伸图片 */
@@ -35,20 +48,3 @@ import { usePathStore } from '@/stores'
   }
 }
 </style>
-
-<script>
-export default {
-  setup() {
-    const pathStore = usePathStore()
-
-    onMounted(() => {
-      // 从 localStorage 初始化下载路径
-      const savedPath = localStorage.getItem('downloadPath')
-      if (savedPath) {
-        pathStore.setDownloadPath(savedPath)
-        console.log('初始化下载路径:', savedPath)
-      }
-    })
-  }
-}
-</script>

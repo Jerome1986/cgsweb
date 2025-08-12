@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, ref, watch, computed, onUnmounted } from 'vue'
-import { bothFilterMaterialApi, filterMaterialApi, searchMaterial } from '@/api/material'
+import { bothFilterMaterialApi } from '@/api/material'
 import { useMaterialStore } from '@/stores/modules/material'
 import { usePathStore, useUserStore } from '@/stores'
 import { ElMessage } from 'element-plus'
@@ -15,6 +15,8 @@ import {
 } from '@/api/users'
 import { useRoute, useRouter } from 'vue-router'
 import path from 'path'
+import { watermarkGetApi } from '@/api/watermark'
+import CustomImagePreview from '@/components/CustomImagePreview.vue'
 
 // 获取当前路由对象
 const route = useRoute()
@@ -29,16 +31,6 @@ const materialStore = useMaterialStore()
 // 下载状态管理
 const pathStore = usePathStore()
 
-// 当前选中的标签和颜色
-const selectedTag = ref('全部')
-const selectedColor = ref(null)
-
-/**
- * 模型下的所有素材
- * @type {import('vue').Ref<materialModel[]>}
- */
-const allMaterial = ref([])
-
 // 添加素材尺寸控制
 const itemSize = ref(405) // 默认尺寸
 const minSize = 200 // 最小尺寸
@@ -46,15 +38,6 @@ const maxSize = 600 // 最大尺寸
 
 // 拖拽状态
 const isDragging = ref(false)
-
-// 标签筛选
-const handleTagSelect = (tag) => {}
-
-// 颜色筛选
-const handleColorSelect = (color) => {}
-
-// 通过搜索查询素材
-const handleSearch = async (searchValue) => {}
 
 // 处理下载成功后扣除用户金币
 const handleUserCoinsOrTimes = async (material_id) => {
@@ -329,11 +312,6 @@ const loveMaterials = async (pagesType, cateId, tag, color) => {
   materialStore.setMaterialTotal(res.data.total)
 }
 
-/**
- * 本地+收藏列表
- * @type {import('vue').Ref<loveListModel[]>}
- */
-const localLove = ref([])
 // 下载 & 收藏 两者都有
 const bothLocalAndLoved = async (pagesType, cateId, tag, color) => {
   const res = await bothFilterMaterialApi(
@@ -503,17 +481,35 @@ const handleStartFileDrag = (scriptPath, fileType) => {
 }
 
 defineExpose({
-  tagsGetMaterials: handleTagSelect,
-  colorGetMaterials: handleColorSelect,
-  searchMaterial: handleSearch,
   localMaterials,
   loveMaterials,
   bothLocalAndLoved
 })
 
+// 水印
+const watermarkUrl = ref('')
+const watermarkGet = async () => {
+  const res = await watermarkGetApi()
+  watermarkUrl.value = res.data.images
+  console.log('水印', watermarkUrl.value)
+  // 设置CSS变量
+  document.documentElement.style.setProperty('--watermark-url', `url(${watermarkUrl.value})`)
+}
+
+// 预览控制
+const previewVisible = ref(false)
+
+// 处理预览
+const previewUrl = ref('')
+const handleView = (url) => {
+  previewVisible.value = true
+  previewUrl.value = url
+}
+
 onMounted(() => {
   downLoadListGet()
   getUsersLoveList()
+  watermarkGet()
 
   // 添加滚轮事件监听
   document.addEventListener('wheel', handleWheel, { passive: false })
@@ -559,11 +555,9 @@ onUnmounted(() => {
         :max-scale="7"
         :min-scale="0.2"
         show-progress
-        :preview-teleported="true"
-        :preview-src-list="materialStore.currentCoverImg"
         fit="cover"
         hide-on-click-modal
-        :initial-index="index"
+        @click="handleView(item.cover_url)"
       />
       <!--   下载    -->
       <div class="download" :class="{ downloadActive: !isDownloaded(item._id) }" style="color: #427b02" @click.stop>
@@ -606,6 +600,9 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- 使用自定义预览组件 -->
+    <CustomImagePreview :src="previewUrl" v-model:modelValue="previewVisible" />
   </div>
 </template>
 
@@ -645,6 +642,44 @@ onUnmounted(() => {
       height: 100%;
       z-index: 0;
       cursor: pointer;
+
+      &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: var(--watermark-url);
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 50%; /* 调整水印大小 */
+        pointer-events: none; /* 确保水印不会干扰鼠标事件 */
+        z-index: 1; /* 确保水印在图片上方 */
+        opacity: 0.3; /* 调整透明度 */
+      }
+    }
+
+    /* 使用深度选择器处理Element Plus预览组件 */
+    ::v-deep(.el-image-viewer__wrapper),
+    ::v-deep(.el-image-viewer__img) {
+      position: relative;
+
+      &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: var(--watermark-url);
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 30%;
+        pointer-events: none;
+        z-index: 1000;
+        opacity: 0.3;
+      }
     }
 
     ::v-deep(.el-image__error),
